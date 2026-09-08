@@ -1629,7 +1629,10 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
             await api('/api/workbench/workspaces/ensure', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: normalizedRoot }) })
             const created = await runtime.workspaces.create?.({ path: normalizedRoot })
             if (typeof created?.workspaceId === 'string' && created.workspaceId !== '') workspaceId = created.workspaceId
-          } catch { /* 根工作区创建/注册失败则回退当前工作区 */ }
+          } catch (workspaceError) {
+            throw new Error(`无法注册 AI 工作区 ${normalizedRoot}：${workspaceError instanceof Error ? workspaceError.message : String(workspaceError)}`)
+          }
+          if (workspaceId === undefined) throw new Error(`无法注册 AI 工作区 ${normalizedRoot}，请重载或重新安装 ai-workbench 插件后再试`)
         }
       }
       const hasCustomTaskFolder = task?.workspacePath !== null && task?.workspacePath !== undefined && task.workspacePath.trim() !== '' && !isAutoTaskWorkspacePath(task.workspacePath, task.id)
