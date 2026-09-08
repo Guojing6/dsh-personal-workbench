@@ -251,7 +251,17 @@ export function makeRoutes(db: DatabaseSync): WebRoute[] {
         if (method === 'POST') {
           const body = await readJsonBody(req)
           if (body === undefined) return writeJson(res, 400, { error: 'invalid JSON body' })
-          if (typeof body.defaultWorkspace === 'string') metaSet('ai_default_workspace', body.defaultWorkspace.trim())
+          if (typeof body.defaultWorkspace === 'string') {
+            const defaultWorkspace = body.defaultWorkspace.trim()
+            if (defaultWorkspace !== '') {
+              try {
+                mkdirSync(defaultWorkspace, { recursive: true })
+              } catch (error) {
+                return writeJson(res, 400, { error: error instanceof Error ? error.message : String(error) })
+              }
+            }
+            metaSet('ai_default_workspace', defaultWorkspace)
+          }
           if (body.autoCreateTypeFolders === true || body.autoCreateTypeFolders === false) metaSet('auto_create_type_folders', body.autoCreateTypeFolders ? '1' : '0')
           if (body.desktopNotify === true || body.desktopNotify === false) metaSet('desktop_notify', body.desktopNotify ? '1' : '0')
           return writeJson(res, 200, { ok: true, settings: {

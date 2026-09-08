@@ -6,7 +6,7 @@ import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { MIGRATIONS, SCHEMA_VERSION } from './schema.js'
-import { defaultDbPath } from '../workbenchPaths.js'
+import { defaultDbPath, defaultTasksWorkspace } from '../workbenchPaths.js'
 
 export interface WorkbenchDbConfig {
   /** 数据目录；缺省 Documents/dsh-workbench */
@@ -47,6 +47,7 @@ export function migrate(db: DatabaseSync): void {
 export function openWorkbenchDb(config: WorkbenchDbConfig = {}): DatabaseSync {
   const dbPath = config.dbPath ?? join(config.dataDir ?? dirname(defaultDbPath()), 'workbench.db')
   mkdirSync(dirname(dbPath), { recursive: true })
+  if (config.dbPath === undefined && config.dataDir === undefined) mkdirSync(defaultTasksWorkspace(), { recursive: true })
   const db = new DatabaseSync(dbPath)
   db.exec('PRAGMA journal_mode = WAL')
   db.exec('PRAGMA foreign_keys = ON')

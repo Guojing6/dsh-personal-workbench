@@ -1563,14 +1563,12 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
     if (customPrompt === null) return
     const planAnchor = mode === 'plan' ? (/^\d{4}-\d{2}-\d{2}$/.test(text) ? text : localDateString()) : ''
     let activeSettings = settings
-    if (!settingsLoaded) {
-      try {
-        const res = await api<{ settings: { defaultWorkspace: string; autoCreateTypeFolders: boolean; desktopNotify: boolean } }>('/api/workbench/settings')
-        activeSettings = res.settings
-        setSettings(res.settings)
-        setSettingsLoaded(true)
-      } catch { /* 设置加载失败时保留当前内存值 */ }
-    }
+    try {
+      const res = await api<{ settings: { defaultWorkspace: string; autoCreateTypeFolders: boolean; desktopNotify: boolean } }>('/api/workbench/settings')
+      activeSettings = res.settings
+      setSettings(res.settings)
+      setSettingsLoaded(true)
+    } catch { /* 设置刷新失败时保留当前内存值 */ }
     const reservedTaskId = mode === 'clarify' ? createClientId() : task?.id ?? ''
     let taskFolderPath = ''
     let taskFolderRelative = ''

@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import http from 'node:http'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { openWorkbenchDb } from '../lib/db/database.js'
@@ -95,9 +95,13 @@ test('settings uses default AI workspace until user overrides it', async () => {
     assert.equal(clear.status, 200)
     assert.equal(clear.body.settings.defaultWorkspace, '')
 
-    const custom = await request('POST', '/api/workbench/settings', { defaultWorkspace: '  E:\\AI Tasks  ' })
+    const settingsDir = mkdtempSync(join(tmpdir(), 'dsh-workbench-settings-'))
+    const customWorkspace = join(settingsDir, 'AI Tasks')
+    const custom = await request('POST', '/api/workbench/settings', { defaultWorkspace: `  ${customWorkspace}  ` })
     assert.equal(custom.status, 200)
-    assert.equal(custom.body.settings.defaultWorkspace, 'E:\\AI Tasks')
+    assert.equal(custom.body.settings.defaultWorkspace, customWorkspace)
+    assert.equal(existsSync(customWorkspace), true)
+    rmSync(settingsDir, { recursive: true, force: true })
   })
 })
 
