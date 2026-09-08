@@ -209,13 +209,16 @@ html[${PENDING_ATTR}] [${ENTRY_ATTR}]::after { content:''; position:absolute; to
 .wb-quick-composer { position:relative; }
 .wb-quick-textarea { width:100%; min-height:118px; background:var(--dsw-alias-bg-base,#17171a); border:1px solid var(--dsw-alias-border-l1,rgba(255,255,255,.18)); color:inherit; border-radius:14px; padding:12px 12px 56px; box-sizing:border-box; font:inherit; font-size:14px; resize:vertical; }
 .wb-quick-textarea:focus { border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4f8ef7) 65%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-business-primary, #4f8ef7) 14%, transparent); outline:none; }
-.wb-quick-actions { position:absolute; right:10px; bottom:10px; display:flex; align-items:center; justify-content:flex-end; gap:7px; max-width:calc(100% - 20px); }
-.wb-quick-actions .wb-btn { height:32px; max-width:min(180px, calc(100vw - 132px)); overflow:hidden; border-radius:999px; padding:0 10px; font-size:12.5px; background:color-mix(in srgb, var(--dsw-alias-bg-layer-2,#222) 84%, transparent); }
+.wb-quick-actions { position:absolute; left:10px; right:10px; bottom:10px; display:flex; align-items:center; justify-content:flex-end; gap:7px; }
+.wb-quick-actions .wb-btn { min-height:32px; max-width:calc(100% - 39px); overflow:visible; border-radius:999px; padding:5px 10px; font-size:12.5px; background:color-mix(in srgb, var(--dsw-alias-bg-layer-2,#222) 84%, transparent); }
+.wb-quick-actions .wb-model-trigger-label { min-width:0; white-space:normal; overflow-wrap:anywhere; line-height:1.2; text-align:left; }
 .wb-send-button { width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center; border:none; border-radius:50%; background:var(--dsw-alias-label-primary,#fff); color:var(--dsw-alias-bg-base,#111); cursor:pointer; padding:0; flex:none; transition:transform .12s ease, box-shadow .12s ease, opacity .12s ease; }
 .wb-send-button svg { width:18px; height:18px; stroke-width:2.1; }
 .wb-send-button:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 6px 16px rgba(0,0,0,.22); }
 .wb-send-button:disabled { opacity:.45; cursor:default; }
 .wb-model-option { width:100%; display:flex; align-items:center; gap:7px; border:1px solid transparent; background:transparent; color:inherit; border-radius:7px; padding:6px 7px; cursor:pointer; font:inherit; font-size:12px; text-align:left; }
+.wb-model-option-name { display:block; white-space:normal; overflow-wrap:anywhere; line-height:1.35; }
+.wb-model-option-effort { display:block; color:var(--dsw-alias-label-secondary); font-size:10.5px; white-space:normal; overflow-wrap:anywhere; line-height:1.35; margin-top:2px; }
 .wb-model-option:hover { background: color-mix(in srgb, var(--dsw-alias-label-primary,#fff) 7%, transparent); }
 .wb-model-option.selected { background: color-mix(in srgb, var(--dsw-alias-state-business-primary,#4f8ef7) 14%, transparent); border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary,#4f8ef7) 34%, transparent); }
 .wb-session-picker-list { display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
@@ -824,13 +827,13 @@ function QuickModelPicker({ runtime, value, onChange, disabled, onError, alignRi
   }
   return (
     <div style={{ position: 'relative' }}>
-      <button type="button" className="wb-btn" disabled={disabled === true} onClick={openPicker} title="选择快速录入澄清会话使用的模型">
-        <Icon name="model" /><span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedLabel}</span><span style={{ flex: 'none' }}>{open ? '▲' : '▼'}</span>
+      <button type="button" className="wb-btn" disabled={disabled === true} onClick={openPicker} title={selectedLabel}>
+        <span className="wb-model-trigger-label">{selectedLabel}</span><span style={{ flex: 'none' }}>{open ? '▲' : '▼'}</span>
       </button>
       {open && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 20 }} onClick={() => setOpen(false)} />
-          <div style={{ position: 'absolute', left: alignRight ? undefined : 0, right: alignRight ? 0 : undefined, top: 'calc(100% + 4px)', zIndex: 30, width: 'min(248px, 78vw)', maxHeight: 238, overflowY: 'auto', background: 'var(--dsw-alias-bg-layer-2, #1c1c1f)', border: '1px solid var(--dsw-alias-border-l1, rgba(255,255,255,.22))', borderRadius: 9, padding: 4, boxShadow: '0 10px 24px rgba(0,0,0,.38)' }}>
+          <div style={{ position: 'absolute', left: alignRight ? undefined : 0, right: alignRight ? 0 : undefined, top: 'calc(100% + 4px)', zIndex: 30, width: 'max-content', minWidth: 260, maxWidth: 'min(420px, calc(100vw - 32px))', maxHeight: 260, overflowY: 'auto', background: 'var(--dsw-alias-bg-layer-2, #1c1c1f)', border: '1px solid var(--dsw-alias-border-l1, rgba(255,255,255,.22))', borderRadius: 9, padding: 4, boxShadow: '0 10px 24px rgba(0,0,0,.38)' }}>
             {loading || state.status === 'loading'
               ? <div style={{ padding: '6px 8px', color: 'var(--dsw-alias-label-secondary)', fontSize: 11.5 }}>正在读取模型列表…</div>
               : null}
@@ -846,8 +849,8 @@ function QuickModelPicker({ runtime, value, onChange, disabled, onError, alignRi
                   return (
                     <button key={model.id} type="button" className={`wb-model-option ${selected ? 'selected' : ''}`} onClick={() => chooseModel(group, model)}>
                       <span style={{ minWidth: 0, flex: 1 }}>
-                        <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{model.name}</span>
-                        {effort !== undefined && <span style={{ display: 'block', color: 'var(--dsw-alias-label-secondary)', fontSize: 10.5 }}>{effort.name}</span>}
+                        <span className="wb-model-option-name">{model.name}</span>
+                        {effort !== undefined && <span className="wb-model-option-effort">{effort.name}</span>}
                       </span>
                       {selected && <Icon name="check" size={14} />}
                     </button>
