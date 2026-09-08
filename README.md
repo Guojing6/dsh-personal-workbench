@@ -2,31 +2,95 @@
 
 [![npm version](https://img.shields.io/npm/v/@guojing6/ai-workbench)](https://www.npmjs.com/package/@guojing6/ai-workbench)
 
-A personal workbench plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) Web.
-Turn your DSH into a **calendar + task list + AI assistant workbench**.
+`ai-workbench` is a local-first personal workbench plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) Web.
 
-[English](#english) · 简体中文
+It adds a task-centered workspace to DSH: calendar, task tree, quick AI intake, execution review, daily planning, reports, knowledge base, ideas, and local task folders.
+
+[中文](#中文) · [English](#english)
 
 ---
 
-# 中文
+## 中文
 
-## 这是什么
+### 这是什么
 
-`ai-workbench` 是一个 **DSH 个人工作台插件**：
+`ai-workbench` 是一个给 DeepSeek Harness Web 使用的个人工作台插件。它把 DSH 从单纯的 AI 对话工具扩展成一个本地任务系统：
 
-- 📅 日历（周/月可切换）+ 任务列表（树状层级）
-- ✨ 自然语言快速录入，AI 澄清后自动生成任务
-- 🧠 每个任务可关联多个 AI 会话：澄清 / 咨询 / 拆解 / 执行 / 复盘
-- ✅ 任务执行采用“AI 申请完成 → 用户验收”闭环
-- 🗂️ 固定 AI 工作区根目录（默认当前用户 Documents/ai-workbench/tasks，可在设置中修改），每个任务在根目录下使用任务 ID 资料夹存放文件
-- 📝 Markdown 任务描述、复盘记录、变更历史
-- ⏰ 到期提醒（页内横幅）
-- 🗄️ 归档区、任务恢复
+- 用日历和任务树管理要做的事。
+- 用快速录入把自然语言、截图或图片转成任务草稿。
+- 每个任务可以继续发起 AI 咨询、拆解、执行、复盘等会话。
+- 任务文件统一放在本机 `Documents/ai-workbench/tasks` 下。
+- 知识库、点子、点子王、日报周报都存储在本机 SQLite 数据库中。
 
-数据完全存储在本机用户 Documents 下的 `ai-workbench` 目录，不上传任何服务器。
+默认数据目录：
 
-## 截图
+```text
+Documents/ai-workbench/
+├─ workbench.db
+└─ tasks/
+   └─ <任务ID>/
+```
+
+其中 `tasks` 是固定 AI 工作区根目录；快速录入或 AI 会话创建任务时，会在 `tasks/<任务ID>` 下准备该任务的资料夹。会话本身连接到 `tasks` 根工作区，避免每条任务都在 DSH 里变成散乱的工作区。
+
+### 主要功能
+
+**任务与日历**
+
+- 今日、日历、任务列表三种视图。
+- 周视图和月视图日历。
+- 支持父子任务树，子任务可继续拆分。
+- 支持任务标题、Markdown 描述、类型、状态、优先级、截止时间、预计耗时、AI 策略、任务资料夹。
+- 支持关键词、状态、优先级、类型组合筛选。
+- 支持按截止时间、优先级、创建时间、标题排序。
+- 支持任务归档和恢复。
+- 子任务全部完成后，父任务可自动聚合完成。
+
+**快速录入**
+
+- 在工作台顶部点击“快速录入”打开输入框。
+- 支持输入自然语言任务。
+- 支持粘贴图片或拖入图片，适合截图、通知、表格照片、错误页面等内容。
+- 支持在快速录入右下角切换模型。
+- 快速录入会创建澄清会话，由 AI 补全任务标题、描述、类型、优先级、截止时间等字段。
+- AI 只提交待确认草稿，用户确认后才真正写入任务库。
+
+**AI 会话**
+
+- AI 咨询：围绕任务提问、分析、补充建议，不执行任务。
+- AI 拆解：生成子任务提案树，确认后写入任务。
+- AI 执行：只对 AI 策略为“可执行”的任务开放；AI 完成后提交验收申请，用户验收后任务才完成。
+- AI 复盘：已完成任务可生成复盘草稿，确认后写回任务记录。
+- AI 智能排序：为今日或日历中任意日期生成执行顺序提案。
+- AI 日报/周报：基于任务事件和完成记录生成报告草稿。
+- 任务共享记忆：同一任务及其子树下的会话可以沉淀上下文、阶段性结论和决策，后续会话继续使用。
+
+**知识库、点子、点子王**
+
+- 知识库用于保存经验教训、决策、笔记和可复用片段。
+- 支持从本地文档读取内容，并让 AI 总结为知识草稿。
+- 知识条目可以保存本地文件链接，方便追溯来源。
+- 点子模块用于快速记录灵感。
+- 点子王用于把多个相关点子聚合成主题集合。
+- AI 可以根据点子或点子王头脑风暴，并提交落地任务草稿。
+
+**提醒与报告**
+
+- 任务到期时显示工作台横幅提醒。
+- 浏览器授权后可弹出系统桌面通知。
+- 支持准时、提前 15 分钟、提前 30 分钟、提前 1 小时、提前 1 天提醒。
+- 日报和周报以草稿形式生成，确认后保存。
+
+**字典与设置**
+
+- 设置页可配置默认 AI 工作区。
+- 默认工作区为空时自动使用当前用户的 `Documents/ai-workbench/tasks`。
+- 旧默认路径 `Documents/aitasks` 会自动迁移到新的默认路径。
+- 设置页支持启用或关闭自动创建任务资料夹。
+- 设置页支持启用或关闭桌面通知。
+- 任务类型、状态、优先级、点子类型由字典驱动，可以新增、编辑、停用；内置项受保护，不可删除。
+
+### 截图
 
 | 主界面 | 日历 | 任务列表 |
 |---|---|---|
@@ -36,174 +100,254 @@ Turn your DSH into a **calendar + task list + AI assistant workbench**.
 |---|---|---|
 | ![知识库](screenshot/%E7%9F%A5%E8%AF%86%E5%BA%93%E7%95%8C%E9%9D%A2.png) | ![点子](screenshot/%E7%82%B9%E5%AD%90%E7%95%8C%E9%9D%A2.png) | ![点子王](screenshot/%E7%82%B9%E5%AD%90%E7%8E%8B.png) |
 
-## 功能清单
+### 安装
 
-### 任务
-- 任务字段：标题、Markdown 描述、类型、状态、优先级、截止时间、AI 策略、提醒、任务资料夹
-- 无限层级子任务；今日 / 日历 / 列表三种视图
-- 任务页筛选/排序：关键词（标题/描述）+ 状态/优先级/类型下拉多选可组合筛选；支持截止时间/优先级/创建时间/标题升降序；筛选保留父子层级，归档列表共用
-- 任务类型、状态、优先级全部由字典表驱动，可自行扩展（设置页“字典管理”已支持新增/编辑/停用类型、状态、优先级、点子类型，默认项受保护）
-- 已完成 / 已取消任务不可再次执行
+前置条件：
 
-### AI
-- **快速录入澄清**：一句话 → 可选择本次澄清模型 → 官方会话区进行需求澄清 → 生成待确认草稿
-- **AI 咨询**：对任务提问、要建议（不执行）
-- **AI 拆解**：生成子任务提案树，确认后落库
-- **AI 执行**：任意节点（含父任务）且 AI 策略为“可执行”时均可执行；AI 完成后提交验收申请，用户验收后才算完成；父任务验收通过时未完成子任务会级联完成
-- **状态聚合**：所有子任务完成后父任务自动完成（递归到根）；直接完成父任务会级联完成后代
-- **任务共享记忆**：同一任务/子树下的多个 AI 会话共享上下文，父任务会话自动加载整棵子树记忆，避免跨会话失忆
-- **存量修复**：提供 `pnpm repair` / `POST /api/workbench/maintenance/repair-parents` 幂等补齐历史父任务完成状态
-- **AI 智能排序（任意日期）**：今日/日历任一日期一键生成执行顺序提案，确认后应用（不修改任务字段）
-- **AI 日报/周报**：基于任务事件与完成记录自动生成报告草稿，确认后保存并可回看、删除
-- **系统级桌面提醒**：任务到期时在浏览器已授权的情况下发送系统通知（页面可最小化）
-- **重复任务**：任务可设置每天/每周/每月重复，到期自动生成实例（模板归档即停止）
-- **个人知识库 / 错题集**：经验教训、决策、笔记、片段沉淀为可搜索知识条目，复盘一键沉淀，AI 可提交知识草稿
-- **知识库增强（AI 总结本地文档 + 文件链接）**：知识库页面支持弹窗浏览选择本地文件，也可直接填写本地文档路径或 `file://`；后端读取文档内容并让 AI 总结为知识草稿；知识条目可保存 `file_link` 并一键调用系统默认程序打开/追溯本地文件
-- **点子 / 点子王**：灵感卡片快速记录；AI 自动找关联生成“点子王”；AI 头脑风暴后可确认转为任务
-- **AI 复盘**：已完成任务一键复盘，结论确认后写回任务
-- 同一任务只保留一个复盘会话；重复复盘进入同一会话
-
-### 数据与安全
-- SQLite（`Documents/ai-workbench/workbench.db`）+ 每日 JSON 备份规划
-- AI 任务文件资料夹默认位于 `Documents/ai-workbench/tasks/<任务ID>`
-- 所有工作台 API 均挂载在 `/api/workbench/*` 且仅允许 loopback 访问
-- 不读取、不上传 DSH 之外的任何数据
-
-## 安装
-
-### 前置条件
-
-- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) **0.1.0-rc.6** Web 版
+- DeepSeek Harness Web `0.1.0-rc.6`
 - Node.js `^22.19.0` 或 `>=24.0.0`
 - pnpm `>=11.7.0 <12`
-- 网络可访问 npm registry（或使用镜像）
 
-### 从 npm 安装（推荐）
+从 npm 安装：
 
 ```sh
 dsh plugin --profile web add @guojing6/ai-workbench
 ```
 
-或使用 npm 直接安装到项目：
-
-```sh
-npm install @guojing6/ai-workbench
-```
-
-### 从 GitHub 安装
+从 GitHub 安装：
 
 ```sh
 dsh plugin --profile web add git+https://github.com/Guojing6/ai-workbench.git
 ```
 
-或安装 Release tarball：
+如果你的 GitHub 仓库还没有改名，使用当前仓库地址：
 
 ```sh
-dsh plugin --profile web add file:/path/to/ai-workbench-<version>.tgz
+dsh plugin --profile web add git+https://github.com/Guojing6/dsh-personal-workbench.git
 ```
 
-安装后重启 `dsh web`，浏览器硬刷新（Ctrl+Shift+R）。
+安装或更新后，重启 `dsh web`，并在浏览器中硬刷新页面。
+
+### 更新
+
+```sh
+dsh plugin --profile web remove @guojing6/ai-workbench
+dsh plugin --profile web add @guojing6/ai-workbench
+```
+
+使用 GitHub 源安装时，把第二行换成对应的 `git+https://...` 地址。
+
+如果更新后快速录入仍提示注入问题，请重启 `dsh web`，再硬刷新浏览器。客户端能力注入需要插件重新加载后才会生效。
 
 ### 从源码开发
 
 ```sh
-git clone https://github.com/Guojing6/ai-workbench.git
-cd ai-workbench
+git clone https://github.com/Guojing6/dsh-personal-workbench.git
+cd dsh-personal-workbench
 pnpm install
-pnpm check      # 类型检查 + 构建
-pnpm test       # 最小回归测试（使用构建产物）
+pnpm check
+pnpm test
 ```
 
-以开发模式挂载：
+本地开发挂载：
 
 ```sh
 pnpm build
-dsh plugin --profile web add link:/path/to/ai-workbench
+dsh plugin --profile web add link:/path/to/dsh-personal-workbench
 ```
 
-> 开发模式修改代码后需要重新 `pnpm build` 并重启 `dsh web`。
+常用命令：
 
-## 兼容性与已知限制
+```sh
+pnpm typecheck
+pnpm build
+pnpm test
+pnpm repair
+```
 
-- 当前版本针对 **DSH 0.1.0-rc.6 Web 版** 开发与测试。
-- 客户端侧边栏入口和中心列接管依赖 rc.6 的 DOM 结构契约（`data-pane`、`logoRow`、`centerCol` 等 class）。
-  **DSH 升级到新的大版本时，必须重新验证这些选择器，必要时适配。**
-- 与 `dsh-web-ui`（task-board / ssh）共存时使用其 `data-dsh-*` 互斥协议；未安装时自动失效，**不依赖 dsh-web-ui**。
-- 仅支持单用户本地使用；无云同步、无多用户权限体系。
-- AI 能力依赖你在 DSH 中已配置的模型与凭证；执行/咨询等会真实消耗 token。
+### 数据存储
 
-## 路线图
+`ai-workbench` 是本地优先插件，核心数据不上传到第三方服务器。
 
-- [x] V1：任务 / 日历 / 快速录入澄清 / 子任务 / 会话关联
-- [x] V1.5：AI 执行 + 用户验收 / 复盘 / 归档 / 变更历史 / 任务资料夹
-- [x] V2 每日 AI 智能排序（0.6.0）
-- [x] V2：系统级桌面提醒（0.8.0）
-- [x] V2 日报/周报（0.7.0）
-- [x] V2：重复任务（0.12.0）
-- [x] V2：个人知识库 / 错题集（1.0.0）
-- [x] V2：知识库增强（AI 总结本地文档 + 文件链接）（1.2.0）
-- [x] V2：今日计划面板长列表优化（sticky 统计卡 / 固定高度内部滚动 / 展开收起 / 面板内完成·推迟）（1.4.0）
-- [x] V2：AI 会话前自定义提示词输入（除快速录入外，默认提示词 + 用户输入追加）（1.5.0）
-- [x] V2：今日/日历计划面板手动编辑（上下移、改备注、从今日任务增删计划项；保留 AI 生成 + 确认 + 完成/推迟）（1.5.0）
-- [x] V2：UI 美化（卡片/列表/表单/点子关联展示统一）
-- [x] V2：任务类型自定义 UI（设置页字典管理：类型/状态/优先级/点子类型）
-- [ ] V2：定时自动化
-- [ ] 未来：多端同步、任务拖拽排序、数据导入导出
+- 数据库：`Documents/ai-workbench/workbench.db`
+- 任务资料：`Documents/ai-workbench/tasks/<任务ID>`
+- 知识库、点子、点子王、计划、报告、提醒、任务事件都存储在 SQLite 中。
+- 本地文档总结只读取你选择或填写的本机文件路径。
+- 工作台接口挂载在 `/api/workbench/*`，并限制为 loopback 访问。
 
-## 免责声明
+### AI 工作区规则
 
-本插件为社区项目，与 DeepSeek 官方无关，不提供任何担保。安装即表示你信任该代码会以你的 DSH 用户权限在本机运行。执行类 AI 操作可能修改工作区文件、消耗 API 额度，请先阅读代码并谨慎使用。
+默认规则如下：
 
-## License
+- 插件自动创建 `Documents/ai-workbench`。
+- 插件自动创建 `Documents/ai-workbench/tasks`。
+- DSH 会话连接到 `tasks` 根工作区。
+- 每个任务的文件放在 `tasks/<任务ID>`。
+- 快速录入预分配任务 ID，所以澄清阶段也能提前知道任务资料夹路径。
 
-本项目代码使用 [MIT License](./LICENSE)。
+如果设置了自定义默认 AI 工作区，插件会使用你的自定义路径作为根目录。
 
-部分 DOM 挂载模式和客户端构建包装参考了以下开源项目，详见 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)：
-- `dsh-task-board`（dsh-web-ui，BSD-3-Clause）
-- `dsh-genui`（MIT）
+为了避免会话落到“未分组”或其他工作区，当前版本要求默认 AI 工作区必须注册成功；如果注册失败，快速录入会直接提示错误，不再静默回退。
+
+### AI 工具协议
+
+插件会向 DSH 注册这些工具，供 AI 会话调用：
+
+- `workbench_submit_task`
+- `workbench_update_task`
+- `workbench_propose_subtasks`
+- `workbench_request_completion`
+- `workbench_submit_review`
+- `workbench_save_task_memory`
+- `workbench_propose_daily_plan`
+- `workbench_submit_report`
+- `workbench_submit_knowledge`
+- `workbench_propose_idea_clusters`
+- `workbench_submit_idea_tasks`
+
+这些工具大多只写入待确认草稿。用户在工作台确认前，AI 不会直接创建子任务、保存报告、写入知识库或完成任务。
+
+### 兼容性
+
+- 当前版本针对 DeepSeek Harness Web `0.1.0-rc.6` 开发和测试。
+- 客户端入口依赖 DSH Web 的 DOM 结构和插件客户端注入能力。
+- 如果 DSH 升级后侧边栏入口、中心区挂载、模型选择或会话发送异常，需要重新适配。
+- 本插件不依赖 `dsh-web-ui`，但保留与相关侧边栏入口的互斥处理。
+- 当前定位是单用户本地插件，不提供云同步和多用户权限体系。
+
+### 路线图
+
+- [x] 任务、日历、快速录入、AI 澄清
+- [x] 子任务拆解、任务会话关联
+- [x] AI 执行、用户验收、复盘、归档
+- [x] 任务共享记忆
+- [x] 今日和日历 AI 智能排序
+- [x] 日报、周报
+- [x] 重复任务
+- [x] 桌面通知
+- [x] 知识库和本地文档总结
+- [x] 点子、点子王、点子落地任务
+- [x] 快速录入图片输入和模型切换
+- [x] 默认数据目录迁移到 `Documents/ai-workbench`
+- [ ] 数据导入导出
+- [ ] 自动备份管理界面
+- [ ] 跨设备同步
+- [ ] 任务拖拽排序
+
+### 免责声明
+
+本项目是社区插件，与 DeepSeek 官方无关。安装插件表示你信任该代码会以你的 DSH 用户权限在本机运行。
+
+AI 执行、文档读取、文件写入和本地工作区操作可能消耗模型额度或修改本机文件。建议先阅读代码，在明确任务范围后再启用可执行策略。
+
+### License
+
+MIT. See [LICENSE](./LICENSE).
+
+部分客户端挂载和构建方式参考了开源项目，详见 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。
 
 ---
 
-# English
+## English
 
-## What is this
+### What Is It
 
-`ai-workbench` is a personal workbench plugin for DeepSeek Harness Web:
-calendar + hierarchical task list, natural-language task intake with AI clarification,
-multiple AI sessions per task (clarify / consult / break down / execute / review),
-execution with user acceptance, AI prioritization for any date, daily/weekly reports,
-desktop notifications, per-task AI workspaces, reminders, archives, and Markdown reviews.
+`ai-workbench` is a local-first personal workbench plugin for DeepSeek Harness Web.
 
-All task data is stored locally under the user's `Documents/ai-workbench` folder.
+It adds a practical task system to DSH:
 
-## Install
+- Calendar and hierarchical task list.
+- Quick AI intake from text, pasted images, or dragged images.
+- Per-task AI sessions for clarification, consultation, breakdown, execution, and review.
+- User acceptance before AI execution marks a task done.
+- AI planning, daily reports, weekly reports, knowledge base, ideas, and idea clusters.
+- Local task folders under `Documents/ai-workbench/tasks`.
 
-```sh
-# From npm (recommended)
-dsh plugin --profile web add @guojing6/ai-workbench
+Default local layout:
 
-# From source or release tarball
-dsh plugin --profile web add git+https://github.com/Guojing6/ai-workbench.git
-dsh plugin --profile web add file:/path/to/ai-workbench-<version>.tgz
+```text
+Documents/ai-workbench/
+├─ workbench.db
+└─ tasks/
+   └─ <taskId>/
 ```
 
-Then restart `dsh web` and hard-refresh the browser.
+The DSH session connects to the `tasks` root workspace, while files for each task are stored in `tasks/<taskId>`.
 
-## Compatibility
+### Install
 
-- Built and tested against **DeepSeek Harness 0.1.0-rc.6 Web**.
-- Does **not** depend on `dsh-web-ui`; optional coexistence protocol only.
-- Node.js `^22.19.0 || >=24.0.0`, pnpm `>=11.7.0 <12`.
+Requirements:
 
-## Roadmap
+- DeepSeek Harness Web `0.1.0-rc.6`
+- Node.js `^22.19.0` or `>=24.0.0`
+- pnpm `>=11.7.0 <12`
 
-- [x] V2: AI prioritization for any date, OS-level notifications, daily/weekly reports
-- [x] V2: recurring tasks, personal knowledge base / lessons, ideas & idea clusters
-- [x] V2: Today plan panel long-list optimization (sticky stats / fixed-height inner scroll / expand-collapse / inline complete & defer) (1.4.0)
-- [x] V2: Custom prompt input before AI sessions (except quick intake; append user input after the default prompt) (1.5.0)
-- [x] V2: Manual editing for today/calendar plan panel (reorder, edit notes, add/remove plan items; keep AI generate + confirm + complete/defer) (1.5.0)
-- [ ] Future: scheduled automation, multi-device sync, drag-and-drop, import/export
+Install from npm:
 
-## License
+```sh
+dsh plugin --profile web add @guojing6/ai-workbench
+```
+
+Install from GitHub:
+
+```sh
+dsh plugin --profile web add git+https://github.com/Guojing6/ai-workbench.git
+```
+
+If the repository has not been renamed on GitHub yet:
+
+```sh
+dsh plugin --profile web add git+https://github.com/Guojing6/dsh-personal-workbench.git
+```
+
+Restart `dsh web` and hard-refresh the browser after installation or update.
+
+### Development
+
+```sh
+git clone https://github.com/Guojing6/dsh-personal-workbench.git
+cd dsh-personal-workbench
+pnpm install
+pnpm check
+pnpm test
+```
+
+Use a local linked plugin while developing:
+
+```sh
+pnpm build
+dsh plugin --profile web add link:/path/to/dsh-personal-workbench
+```
+
+### Data And Privacy
+
+Core data is stored locally:
+
+- SQLite database: `Documents/ai-workbench/workbench.db`
+- Task files: `Documents/ai-workbench/tasks/<taskId>`
+- Workbench API: `/api/workbench/*`, loopback only
+
+The plugin does not provide cloud sync. AI sessions use the model providers configured in your DSH environment and may consume tokens.
+
+### Compatibility
+
+- Built for DeepSeek Harness Web `0.1.0-rc.6`.
+- Depends on DSH Web client injection for sessions, workspaces, model directories, and UI workspace connection.
+- DSH Web upgrades may require selector or runtime API adjustments.
+
+### Roadmap
+
+- [x] Tasks, calendar, quick intake, AI clarification
+- [x] Subtasks, AI execution, review, archives
+- [x] AI planning, daily and weekly reports
+- [x] Recurring tasks and desktop notifications
+- [x] Knowledge base, local document summary, ideas, idea clusters
+- [x] Quick intake images and model picker
+- [ ] Import/export
+- [ ] Backup management UI
+- [ ] Multi-device sync
+- [ ] Drag-and-drop task ordering
+
+### License
 
 MIT. See [LICENSE](./LICENSE) and [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
