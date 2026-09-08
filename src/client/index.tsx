@@ -221,8 +221,8 @@ html[${PENDING_ATTR}] [${ENTRY_ATTR}]::after { content:''; position:absolute; to
 .wb-quick-actions .wb-model-trigger { border-color:transparent; background:transparent; color:var(--dsw-alias-label-primary); font-weight:650; padding:0 4px; }
 .wb-quick-actions .wb-model-trigger:hover { background:transparent; color:var(--dsw-alias-label-primary); }
 .wb-model-trigger-effort { color:var(--dsw-alias-label-secondary); font-weight:650; margin-left:4px; }
-.wb-quick-upload-button { width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--dsw-alias-border-l1, rgba(127,127,127,.26)); border-radius:50%; color:var(--dsw-alias-label-secondary); background:color-mix(in srgb, var(--dsw-alias-bg-layer-2,#222) 84%, transparent); cursor:pointer; padding:0; flex:none; }
-.wb-quick-upload-button:hover:not(:disabled) { color:var(--dsw-alias-label-primary); background:color-mix(in srgb, var(--dsw-alias-label-primary,#fff) 8%, transparent); }
+.wb-quick-upload-button { width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center; border:1px solid color-mix(in srgb, var(--dsw-alias-state-business-primary,#4f8ef7) 38%, transparent); border-radius:50%; color:var(--dsw-alias-label-primary); background:color-mix(in srgb, var(--dsw-alias-state-business-primary,#4f8ef7) 16%, transparent); cursor:pointer; padding:0; flex:none; }
+.wb-quick-upload-button:hover:not(:disabled) { color:var(--dsw-alias-label-primary); background:color-mix(in srgb, var(--dsw-alias-state-business-primary,#4f8ef7) 24%, transparent); border-color:color-mix(in srgb, var(--dsw-alias-state-business-primary,#4f8ef7) 52%, transparent); }
 .wb-quick-upload-button:disabled { opacity:.45; cursor:default; }
 .wb-send-button { width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center; border:none; border-radius:50%; background:var(--dsw-alias-label-primary,#fff); color:var(--dsw-alias-bg-base,#111); cursor:pointer; padding:0; flex:none; transition:transform .12s ease, box-shadow .12s ease, opacity .12s ease; }
 .wb-send-button svg { width:18px; height:18px; stroke-width:2.1; }
