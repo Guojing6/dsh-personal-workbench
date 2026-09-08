@@ -220,9 +220,9 @@ html[${PENDING_ATTR}] [${ENTRY_ATTR}]::after { content:''; position:absolute; to
 .wb-quick-actions .wb-model-trigger-label { white-space:nowrap; line-height:1.2; }
 .wb-quick-actions .wb-model-trigger { border-color:transparent; background:transparent; color:var(--dsw-alias-label-primary); font-weight:400; padding:0 4px; }
 .wb-quick-actions .wb-model-trigger:hover { background:transparent; color:var(--dsw-alias-label-primary); }
-.wb-send-button { width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center; border:none; border-radius:50%; background:var(--dsw-alias-label-primary,#fff); color:var(--dsw-alias-bg-base,#111); cursor:pointer; padding:0; flex:none; transition:transform .12s ease, box-shadow .12s ease, opacity .12s ease; }
+.wb-send-button { width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center; border:1px solid color-mix(in srgb, var(--dsw-alias-state-business-primary,#4f8ef7) 38%, transparent); border-radius:50%; background:color-mix(in srgb, var(--dsw-alias-state-business-primary,#4f8ef7) 16%, transparent); color:var(--dsw-alias-label-primary); cursor:pointer; padding:0; flex:none; transition:transform .12s ease, box-shadow .12s ease, opacity .12s ease, background .12s ease, border-color .12s ease; }
 .wb-send-button svg { width:18px; height:18px; stroke-width:2.1; }
-.wb-send-button:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 6px 16px rgba(0,0,0,.22); }
+.wb-send-button:hover:not(:disabled) { transform:translateY(-1px); background:color-mix(in srgb, var(--dsw-alias-state-business-primary,#4f8ef7) 24%, transparent); border-color:color-mix(in srgb, var(--dsw-alias-state-business-primary,#4f8ef7) 52%, transparent); box-shadow:0 6px 16px rgba(0,0,0,.22); }
 .wb-send-button:disabled { opacity:.45; cursor:default; }
 .wb-model-option { width:100%; display:flex; align-items:center; gap:7px; border:1px solid transparent; background:transparent; color:inherit; border-radius:7px; padding:6px 7px; cursor:pointer; font:inherit; font-size:12px; text-align:left; }
 .wb-model-option-name { display:block; white-space:nowrap; line-height:1.35; }
