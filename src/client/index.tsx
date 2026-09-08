@@ -209,16 +209,19 @@ html[${PENDING_ATTR}] [${ENTRY_ATTR}]::after { content:''; position:absolute; to
 .wb-quick-composer { position:relative; }
 .wb-quick-textarea { width:100%; min-height:118px; background:var(--dsw-alias-bg-base,#17171a); border:1px solid var(--dsw-alias-border-l1,rgba(255,255,255,.18)); color:inherit; border-radius:14px; padding:12px 12px 56px; box-sizing:border-box; font:inherit; font-size:14px; resize:vertical; }
 .wb-quick-textarea:focus { border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4f8ef7) 65%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-business-primary, #4f8ef7) 14%, transparent); outline:none; }
-.wb-quick-actions { position:absolute; left:10px; right:10px; bottom:10px; display:flex; align-items:center; justify-content:flex-end; gap:7px; }
-.wb-quick-actions .wb-btn { min-height:32px; max-width:calc(100% - 39px); overflow:visible; border-radius:999px; padding:5px 10px; font-size:12.5px; background:color-mix(in srgb, var(--dsw-alias-bg-layer-2,#222) 84%, transparent); }
-.wb-quick-actions .wb-model-trigger-label { min-width:0; white-space:normal; overflow-wrap:anywhere; line-height:1.2; text-align:left; }
+.wb-quick-actions { position:absolute; right:10px; bottom:10px; display:flex; align-items:center; justify-content:flex-end; gap:7px; max-width:none; overflow:visible; }
+.wb-quick-actions .wb-btn { height:32px; overflow:visible; border-radius:999px; padding:0 10px; font-size:12.5px; white-space:nowrap; background:color-mix(in srgb, var(--dsw-alias-bg-layer-2,#222) 84%, transparent); }
+.wb-quick-actions .wb-model-trigger-label { white-space:nowrap; line-height:1.2; }
+.wb-quick-actions .wb-model-trigger { border-color:transparent; background:transparent; color:var(--dsw-alias-label-primary); font-weight:650; padding:0 4px; }
+.wb-quick-actions .wb-model-trigger:hover { background:transparent; color:var(--dsw-alias-label-primary); }
+.wb-model-trigger-effort { color:var(--dsw-alias-label-secondary); font-weight:650; margin-left:4px; }
 .wb-send-button { width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center; border:none; border-radius:50%; background:var(--dsw-alias-label-primary,#fff); color:var(--dsw-alias-bg-base,#111); cursor:pointer; padding:0; flex:none; transition:transform .12s ease, box-shadow .12s ease, opacity .12s ease; }
 .wb-send-button svg { width:18px; height:18px; stroke-width:2.1; }
 .wb-send-button:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 6px 16px rgba(0,0,0,.22); }
 .wb-send-button:disabled { opacity:.45; cursor:default; }
 .wb-model-option { width:100%; display:flex; align-items:center; gap:7px; border:1px solid transparent; background:transparent; color:inherit; border-radius:7px; padding:6px 7px; cursor:pointer; font:inherit; font-size:12px; text-align:left; }
-.wb-model-option-name { display:block; white-space:normal; overflow-wrap:anywhere; line-height:1.35; }
-.wb-model-option-effort { display:block; color:var(--dsw-alias-label-secondary); font-size:10.5px; white-space:normal; overflow-wrap:anywhere; line-height:1.35; margin-top:2px; }
+.wb-model-option-name { display:block; white-space:nowrap; line-height:1.35; }
+.wb-model-option-effort { display:block; color:var(--dsw-alias-label-secondary); font-size:10.5px; white-space:nowrap; line-height:1.35; margin-top:2px; }
 .wb-model-option:hover { background: color-mix(in srgb, var(--dsw-alias-label-primary,#fff) 7%, transparent); }
 .wb-model-option.selected { background: color-mix(in srgb, var(--dsw-alias-state-business-primary,#4f8ef7) 14%, transparent); border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary,#4f8ef7) 34%, transparent); }
 .wb-session-picker-list { display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
@@ -802,6 +805,12 @@ function QuickModelPicker({ runtime, value, onChange, disabled, onError, alignRi
     if (liveLabel !== `${value.provider}/${value.model}`) return liveLabel
     return value.effortLabel === undefined ? value.label : `${value.label} · ${value.effortLabel}`
   }, [loading, selectionLabel, state.current, state.status, value])
+  const selectedLabelParts = useMemo(() => {
+    const separator = ' · '
+    const index = selectedLabel.lastIndexOf(separator)
+    if (index < 0) return { model: selectedLabel, effort: '' }
+    return { model: selectedLabel.slice(0, index), effort: selectedLabel.slice(index + separator.length) }
+  }, [selectedLabel])
   const openPicker = (): void => {
     if (directory === undefined) {
       onError('当前 DSH 未提供模型选择接口，无法读取模型列表')
@@ -827,13 +836,13 @@ function QuickModelPicker({ runtime, value, onChange, disabled, onError, alignRi
   }
   return (
     <div style={{ position: 'relative' }}>
-      <button type="button" className="wb-btn" disabled={disabled === true} onClick={openPicker} title={selectedLabel}>
-        <span className="wb-model-trigger-label">{selectedLabel}</span><span style={{ flex: 'none' }}>{open ? '▲' : '▼'}</span>
+      <button type="button" className="wb-btn wb-model-trigger" disabled={disabled === true} onClick={openPicker} title={selectedLabel}>
+        <span className="wb-model-trigger-label">{selectedLabelParts.model}{selectedLabelParts.effort !== '' && <span className="wb-model-trigger-effort">{selectedLabelParts.effort}</span>}</span><span style={{ flex: 'none' }}>{open ? '⌃' : '›'}</span>
       </button>
       {open && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 20 }} onClick={() => setOpen(false)} />
-          <div style={{ position: 'absolute', left: alignRight ? undefined : 0, right: alignRight ? 0 : undefined, top: 'calc(100% + 4px)', zIndex: 30, width: 'max-content', minWidth: 260, maxWidth: 'min(420px, calc(100vw - 32px))', maxHeight: 260, overflowY: 'auto', background: 'var(--dsw-alias-bg-layer-2, #1c1c1f)', border: '1px solid var(--dsw-alias-border-l1, rgba(255,255,255,.22))', borderRadius: 9, padding: 4, boxShadow: '0 10px 24px rgba(0,0,0,.38)' }}>
+          <div style={{ position: 'absolute', left: alignRight ? undefined : 0, right: alignRight ? 0 : undefined, top: 'calc(100% + 4px)', zIndex: 30, width: 'max-content', minWidth: 260, maxWidth: 'none', maxHeight: 260, overflowY: 'auto', background: 'var(--dsw-alias-bg-layer-2, #1c1c1f)', border: '1px solid var(--dsw-alias-border-l1, rgba(255,255,255,.22))', borderRadius: 9, padding: 4, boxShadow: '0 10px 24px rgba(0,0,0,.38)' }}>
             {loading || state.status === 'loading'
               ? <div style={{ padding: '6px 8px', color: 'var(--dsw-alias-label-secondary)', fontSize: 11.5 }}>正在读取模型列表…</div>
               : null}
