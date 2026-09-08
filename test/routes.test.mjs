@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { openWorkbenchDb } from '../lib/db/database.js'
-import { defaultTasksWorkspace, legacyDefaultTasksWorkspace } from '../lib/workbenchPaths.js'
+import { defaultTasksWorkspace, legacyAiWorkbenchTasksWorkspace, legacyDefaultTasksWorkspace } from '../lib/workbenchPaths.js'
 import { seedDictionaries } from '../lib/db/seed.js'
 import { makeDictionaryRoute } from '../lib/api/dictionaryRoute.js'
 import { makeLocalDirRoute } from '../lib/api/localDirRoute.js'
@@ -61,7 +61,7 @@ test('manual plan editing PUT saves added task instead of returning not found', 
 
     const health = await request('GET', '/api/workbench/health')
     assert.equal(health.status, 200)
-    assert.equal(health.body.version, '1.8.0')
+    assert.equal(health.body.version, '1.10.1')
 
     // Simulates: open edit mode, add an existing task, then save.
     const put = await request('PUT', `/api/workbench/plans/${planDate}`, {
@@ -98,6 +98,10 @@ test('settings uses default AI workspace until user overrides it', async () => {
     const legacy = await request('POST', '/api/workbench/settings', { defaultWorkspace: legacyDefaultTasksWorkspace() })
     assert.equal(legacy.status, 200)
     assert.equal(legacy.body.settings.defaultWorkspace, defaultTasksWorkspace())
+
+    const legacyAiWorkbench = await request('POST', '/api/workbench/settings', { defaultWorkspace: legacyAiWorkbenchTasksWorkspace() })
+    assert.equal(legacyAiWorkbench.status, 200)
+    assert.equal(legacyAiWorkbench.body.settings.defaultWorkspace, defaultTasksWorkspace())
 
     const custom = await request('POST', '/api/workbench/settings', { defaultWorkspace: '  E:\\AI Tasks  ' })
     assert.equal(custom.status, 200)

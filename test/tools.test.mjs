@@ -9,14 +9,14 @@ import { proposeDailyPlanTool, proposeIdeaClustersTool, submitIdeaTasksTool, sub
 import { createIdea, createTask, getTask, getTaskMemoryContext, getDraftBySession, getPendingDailyPlanDraft, getPendingDraftForSession, getPendingDraftForTask, getPendingReportDraft, updateTask } from '../lib/db/repo.js'
 
 test('agent tools write pending drafts and update tasks', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'ai-workbench-tools-'))
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-personal-workbench-tools-'))
   try {
     const db = openWorkbenchDb({ dbPath: join(dir, 'workbench.db') })
     seedDictionaries(db)
     const submit = submitTaskTool(db)
     const out = await submit.execute(
       { task_id: 'reserved-task-1', title: 'clarified task', type_code: 'client_meeting', priority_code: 'p0' },
-      { agent: { session: { id: 'sess-1', header: { cwd: 'D:\\Documents\\ai-workbench\\tasks\\old-title-folder' } } } },
+      { agent: { session: { id: 'sess-1', header: { cwd: 'D:\\Documents\\dsh-personal-workbench\\tasks\\old-title-folder' } } } },
     )
     assert.match(out, /草稿已保存/)
     const quickDraft = getDraftBySession(db, 'sess-1')

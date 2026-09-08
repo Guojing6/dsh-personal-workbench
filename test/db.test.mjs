@@ -17,7 +17,7 @@ import {
 } from '../lib/db/repo.js'
 
 test('db migrations, dictionaries and task tree', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'ai-workbench-db-'))
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-personal-workbench-db-'))
   try {
     const db = openWorkbenchDb({ dbPath: join(dir, 'workbench.db') })
     seedDictionaries(db)
@@ -154,7 +154,7 @@ test('db migrations, dictionaries and task tree', () => {
 })
 
 test('effective due date dynamically inherits nearest ancestor due', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'ai-workbench-effective-due-'))
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-personal-workbench-effective-due-'))
   try {
     const db = openWorkbenchDb({ dbPath: join(dir, 'workbench.db') })
     seedDictionaries(db)
@@ -193,7 +193,7 @@ test('effective due date dynamically inherits nearest ancestor due', () => {
 })
 
 test('status cascade aggregation, repair and shared memory', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'ai-workbench-cascade-'))
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-personal-workbench-cascade-'))
   try {
     const db = openWorkbenchDb({ dbPath: join(dir, 'workbench.db') })
     seedDictionaries(db)

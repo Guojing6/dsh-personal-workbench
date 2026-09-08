@@ -1,5 +1,5 @@
 {
-  "name": "@guojing6/ai-workbench",
+  "name": "@guojing6/dsh-personal-workbench",
   "version": "1.10.1",
   "description": "DSH 个人工作台：日历 + 层级任务 + AI 澄清/拆解/执行/复盘 + AI 智能排序/日报周报 + 桌面提醒",
   "type": "module",

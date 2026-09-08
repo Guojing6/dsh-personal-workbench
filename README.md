@@ -1,8 +1,8 @@
-# ai-workbench
+# dsh-personal-workbench
 
-[![npm version](https://img.shields.io/npm/v/@guojing6/ai-workbench)](https://www.npmjs.com/package/@guojing6/ai-workbench)
+[![npm version](https://img.shields.io/npm/v/@guojing6/dsh-personal-workbench)](https://www.npmjs.com/package/@guojing6/dsh-personal-workbench)
 
-`ai-workbench` is a local-first personal workbench plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) Web.
+`dsh-personal-workbench` is a local-first personal workbench plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) Web.
 
 It adds a task-centered workspace to DSH: calendar, task tree, quick AI intake, execution review, daily planning, reports, knowledge base, ideas, and local task folders.
 
@@ -14,18 +14,18 @@ It adds a task-centered workspace to DSH: calendar, task tree, quick AI intake, 
 
 ### 这是什么
 
-`ai-workbench` 是一个给 DeepSeek Harness Web 使用的个人工作台插件。它把 DSH 从单纯的 AI 对话工具扩展成一个本地任务系统：
+`dsh-personal-workbench` 是一个给 DeepSeek Harness Web 使用的个人工作台插件。它把 DSH 从单纯的 AI 对话工具扩展成一个本地任务系统：
 
 - 用日历和任务树管理要做的事。
 - 用快速录入把自然语言、截图或图片转成任务草稿。
 - 每个任务可以继续发起 AI 咨询、拆解、执行、复盘等会话。
-- 任务文件统一放在本机 `Documents/ai-workbench/tasks` 下。
+- 任务文件统一放在本机 `Documents/dsh-personal-workbench/tasks` 下。
 - 知识库、点子、点子王、日报周报都存储在本机 SQLite 数据库中。
 
 默认数据目录：
 
 ```text
-Documents/ai-workbench/
+Documents/dsh-personal-workbench/
 ├─ workbench.db
 └─ tasks/
    └─ <任务ID>/
@@ -84,8 +84,8 @@ Documents/ai-workbench/
 **字典与设置**
 
 - 设置页可配置默认 AI 工作区。
-- 默认工作区为空时自动使用当前用户的 `Documents/ai-workbench/tasks`。
-- 旧默认路径 `Documents/aitasks` 会自动迁移到新的默认路径。
+- 默认工作区为空时自动使用当前用户的 `Documents/dsh-personal-workbench/tasks`。
+- 旧默认路径 `Documents/aitasks` 和 `Documents/ai-workbench/tasks` 会自动迁移到新的默认路径。
 - 设置页支持启用或关闭自动创建任务资料夹。
 - 设置页支持启用或关闭桌面通知。
 - 任务类型、状态、优先级、点子类型由字典驱动，可以新增、编辑、停用；内置项受保护，不可删除。
@@ -111,16 +111,10 @@ Documents/ai-workbench/
 从 npm 安装：
 
 ```sh
-dsh plugin --profile web add @guojing6/ai-workbench
+dsh plugin --profile web add @guojing6/dsh-personal-workbench
 ```
 
 从 GitHub 安装：
-
-```sh
-dsh plugin --profile web add git+https://github.com/Guojing6/ai-workbench.git
-```
-
-如果你的 GitHub 仓库还没有改名，使用当前仓库地址：
 
 ```sh
 dsh plugin --profile web add git+https://github.com/Guojing6/dsh-personal-workbench.git
@@ -131,8 +125,8 @@ dsh plugin --profile web add git+https://github.com/Guojing6/dsh-personal-workbe
 ### 更新
 
 ```sh
-dsh plugin --profile web remove @guojing6/ai-workbench
-dsh plugin --profile web add @guojing6/ai-workbench
+dsh plugin --profile web remove @guojing6/dsh-personal-workbench
+dsh plugin --profile web add @guojing6/dsh-personal-workbench
 ```
 
 使用 GitHub 源安装时，把第二行换成对应的 `git+https://...` 地址。
@@ -167,10 +161,10 @@ pnpm repair
 
 ### 数据存储
 
-`ai-workbench` 是本地优先插件，核心数据不上传到第三方服务器。
+`dsh-personal-workbench` 是本地优先插件，核心数据不上传到第三方服务器。
 
-- 数据库：`Documents/ai-workbench/workbench.db`
-- 任务资料：`Documents/ai-workbench/tasks/<任务ID>`
+- 数据库：`Documents/dsh-personal-workbench/workbench.db`
+- 任务资料：`Documents/dsh-personal-workbench/tasks/<任务ID>`
 - 知识库、点子、点子王、计划、报告、提醒、任务事件都存储在 SQLite 中。
 - 本地文档总结只读取你选择或填写的本机文件路径。
 - 工作台接口挂载在 `/api/workbench/*`，并限制为 loopback 访问。
@@ -179,8 +173,8 @@ pnpm repair
 
 默认规则如下：
 
-- 插件自动创建 `Documents/ai-workbench`。
-- 插件自动创建 `Documents/ai-workbench/tasks`。
+- 插件自动创建 `Documents/dsh-personal-workbench`。
+- 插件自动创建 `Documents/dsh-personal-workbench/tasks`。
 - DSH 会话连接到 `tasks` 根工作区。
 - 每个任务的文件放在 `tasks/<任务ID>`。
 - 快速录入预分配任务 ID，所以澄清阶段也能提前知道任务资料夹路径。
@@ -228,7 +222,7 @@ pnpm repair
 - [x] 知识库和本地文档总结
 - [x] 点子、点子王、点子落地任务
 - [x] 快速录入图片输入和模型切换
-- [x] 默认数据目录迁移到 `Documents/ai-workbench`
+- [x] 默认数据目录迁移到 `Documents/dsh-personal-workbench`
 - [ ] 数据导入导出
 - [ ] 自动备份管理界面
 - [ ] 跨设备同步
@@ -252,7 +246,7 @@ MIT. See [LICENSE](./LICENSE).
 
 ### What Is It
 
-`ai-workbench` is a local-first personal workbench plugin for DeepSeek Harness Web.
+`dsh-personal-workbench` is a local-first personal workbench plugin for DeepSeek Harness Web.
 
 It adds a practical task system to DSH:
 
@@ -261,12 +255,12 @@ It adds a practical task system to DSH:
 - Per-task AI sessions for clarification, consultation, breakdown, execution, and review.
 - User acceptance before AI execution marks a task done.
 - AI planning, daily reports, weekly reports, knowledge base, ideas, and idea clusters.
-- Local task folders under `Documents/ai-workbench/tasks`.
+- Local task folders under `Documents/dsh-personal-workbench/tasks`.
 
 Default local layout:
 
 ```text
-Documents/ai-workbench/
+Documents/dsh-personal-workbench/
 ├─ workbench.db
 └─ tasks/
    └─ <taskId>/
@@ -285,16 +279,10 @@ Requirements:
 Install from npm:
 
 ```sh
-dsh plugin --profile web add @guojing6/ai-workbench
+dsh plugin --profile web add @guojing6/dsh-personal-workbench
 ```
 
 Install from GitHub:
-
-```sh
-dsh plugin --profile web add git+https://github.com/Guojing6/ai-workbench.git
-```
-
-If the repository has not been renamed on GitHub yet:
 
 ```sh
 dsh plugin --profile web add git+https://github.com/Guojing6/dsh-personal-workbench.git
@@ -323,8 +311,8 @@ dsh plugin --profile web add link:/path/to/dsh-personal-workbench
 
 Core data is stored locally:
 
-- SQLite database: `Documents/ai-workbench/workbench.db`
-- Task files: `Documents/ai-workbench/tasks/<taskId>`
+- SQLite database: `Documents/dsh-personal-workbench/workbench.db`
+- Task files: `Documents/dsh-personal-workbench/tasks/<taskId>`
 - Workbench API: `/api/workbench/*`, loopback only
 
 The plugin does not provide cloud sync. AI sessions use the model providers configured in your DSH environment and may consume tokens.

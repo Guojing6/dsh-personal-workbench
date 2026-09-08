@@ -15,7 +15,7 @@ import {
   listDictionaries, listDueReminders, listIdeas, listIdeaClusters, listIdeaClustersForIdea, listKnowledge, listReminders, listTaskEvents, listTaskMemories, listTaskReports, listTaskReviews,
   listTaskSessions, listTasks, localDateString, registerAiSession, repairParentCompletion, restoreTask, updateDailyPlan, updateIdea, updateKnowledge, updateTask, updateTaskWithCompletion, type ReportPeriodCode, type TaskInput,
 } from '../db/repo.js'
-import { defaultTasksWorkspace, legacyDefaultTasksWorkspace } from '../workbenchPaths.js'
+import { defaultTasksWorkspace, legacyAiWorkbenchTasksWorkspace, legacyDefaultTasksWorkspace } from '../workbenchPaths.js'
 
 const TASKS_PREFIX = '/api/workbench/tasks'
 const DRAFTS_PREFIX = '/api/workbench/drafts'
@@ -39,6 +39,7 @@ function storedDefaultWorkspace(metaGet: (key: string) => string | undefined): s
   if (stored === undefined) return defaultAiWorkspace()
   const normalized = normalizePathForCompare(stored)
   if (normalized === normalizePathForCompare(legacyDefaultTasksWorkspace())) return defaultAiWorkspace()
+  if (normalized === normalizePathForCompare(legacyAiWorkbenchTasksWorkspace())) return defaultAiWorkspace()
   return stored
 }
 
@@ -912,8 +913,8 @@ export function makeRoutes(db: DatabaseSync): WebRoute[] {
         const versionRow = db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get() as { value: string } | undefined
         writeJson(res, 200, {
           ok: true,
-          name: '@guojing6/ai-workbench',
-          version: '1.8.0',
+          name: '@guojing6/dsh-personal-workbench',
+          version: '1.10.1',
           db: {
             schemaVersion: versionRow?.value ?? 'unknown',
             taskCount: listTasks(db, { includeArchived: true }).length,
