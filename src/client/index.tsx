@@ -321,6 +321,10 @@ const api = async <T,>(path: string, init?: RequestInit): Promise<T> => {
 }
 
 const DEFAULT_AI_WORKSPACE_HINT = '自动：Documents\\aitasks'
+const createClientId = (): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  return `task_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
+}
 const clientFileLinkToPath = (link: string): string => {
   const trimmed = link.trim()
   if (!/^file:/i.test(trimmed)) return trimmed
@@ -1025,6 +1029,7 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [settings, setSettings] = useState<{ defaultWorkspace: string; autoCreateTypeFolders: boolean; desktopNotify: boolean }>({ defaultWorkspace: '', autoCreateTypeFolders: true, desktopNotify: true })
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [notifyPerm, setNotifyPerm] = useState<NotificationPermission | 'unsupported'>(() => typeof Notification === 'undefined' ? 'unsupported' : Notification.permission)
   const [showSettings, setShowSettings] = useState(false)
   const [dictKind, setDictKind] = useState<'type' | 'status' | 'priority' | 'idea_kind'>('type')
@@ -1115,7 +1120,12 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
     if (view === 'ideas') void loadIdeas().catch(() => undefined)
   }, [view, loadIdeas, ideaRefreshKey])
   useEffect(() => { void refresh().catch((e: unknown) => setError(e instanceof Error ? e.message : String(e))) }, [refresh])
-  useEffect(() => { void api<{ settings: { defaultWorkspace: string; autoCreateTypeFolders: boolean; desktopNotify: boolean } }>('/api/workbench/settings').then((r) => setSettings(r.settings)).catch(() => undefined) }, [])
+  useEffect(() => {
+    void api<{ settings: { defaultWorkspace: string; autoCreateTypeFolders: boolean; desktopNotify: boolean } }>('/api/workbench/settings')
+      .then((r) => setSettings(r.settings))
+      .catch(() => undefined)
+      .finally(() => setSettingsLoaded(true))
+  }, [])
 
   const notifiedRef = useRef<Set<string>>(new Set())
   useEffect(() => {
@@ -1266,6 +1276,18 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
     const customPrompt = mode === 'clarify' ? '' : await askUserPrompt(AI_PROMPT_LABELS[mode] ?? 'AI 会话')
     if (customPrompt === null) return
     const planAnchor = mode === 'plan' ? (/^\d{4}-\d{2}-\d{2}$/.test(text) ? text : localDateString()) : ''
+    let activeSettings = settings
+    if (!settingsLoaded) {
+      try {
+        const res = await api<{ settings: { defaultWorkspace: string; autoCreateTypeFolders: boolean; desktopNotify: boolean } }>('/api/workbench/settings')
+        activeSettings = res.settings
+        setSettings(res.settings)
+        setSettingsLoaded(true)
+      } catch { /* 设置加载失败时保留当前内存值 */ }
+    }
+    const reservedTaskId = mode === 'clarify' ? createClientId() : task?.id ?? ''
+    let taskFolderPath = ''
+    let taskFolderRelative = ''
     setBusy(true); setError(null)
     try {
       // 复用型会话：计划/报告/点子关联/点子头脑风暴，每个 scope+anchor 只有一个会话。
@@ -1302,64 +1324,49 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
           }
         }
       }
-      let workspaceId: string | undefined
-      let id = ''
-      let binding: { session: SessionDriver } | undefined
-      if (mode === 'clarify') {
-        const sessionsState = runtime.sessions.list.getSnapshot()
-        const currentId = sessionsState.current
-        const current = currentId === undefined ? undefined : sessionsState.byId[currentId]
-        if (currentId !== undefined && currentId !== '' && current?.blank === true) {
-          id = currentId
-          binding = runtime.sessions.binding(currentId)
-        }
-        if (binding === undefined) {
-          const ws = runtime.workspaces.list.getSnapshot()
-          const normalize = (path: string): string => path.trim().replace(/\\/g, '/').replace(/\/+$/g, '').toLowerCase()
-          const currentCwd = typeof current?.cwd === 'string' && current.cwd !== '' ? normalize(current.cwd) : ''
-          const defaultRoot = settings.defaultWorkspace === '' ? '' : normalize(settings.defaultWorkspace)
-          workspaceId =
-            (currentCwd === '' ? undefined : ws.items.find((item) => typeof item.path === 'string' && normalize(item.path) === currentCwd)?.workspaceId)
-            ?? ws.items.find((item) => typeof item.path !== 'string' || defaultRoot === '' || !normalize(item.path).startsWith(`${defaultRoot}/`))?.workspaceId
-            ?? ws.items[0]?.workspaceId
-          if (workspaceId === undefined) throw new Error('没有可用工作区，请先在 DSH 中打开一个工作区')
-          id = await runtime.uiWorkspace.connectWorkspace(workspaceId)
-          binding = runtime.sessions.binding(id)
-        }
-      } else {
-        const ws = runtime.workspaces.list.getSnapshot()
-        workspaceId = ws.items[0]?.workspaceId
-        const hostHome = runtime.connection?.generation.getSnapshot()?.host.home
-        const isWsl = hostHome !== undefined
-          ? isWslStylePath(hostHome)
-          : ws.items.some((item) => typeof item.path === 'string' && isWslStylePath(item.path))
-        const pathSep = isWsl ? '/' : '\\'
-        let desired = ''
-        if (task !== null) {
-          desired = task.workspacePath ?? ''
-          if (settings.defaultWorkspace !== '' && settings.autoCreateTypeFolders && (desired === '' || isAutoTaskWorkspacePath(desired, task.id))) {
-            desired = joinPath(settings.defaultWorkspace, taskWorkspaceFolderName(task.id), pathSep)
-          }
-        }
-        // WSL 下把 Windows 盘符路径（D:\Code）统一归一化为真实路径（/mnt/d/Code）。
-        // 相对路径和已是 /mnt/... 的路径不会被转换；原生 Windows 上不做转换。
-        const normalizedDesired = desired === '' ? '' : isWsl ? normalizeWindowsPathToWsl(desired) : desired
-        if (normalizedDesired !== '') {
+      const ws = runtime.workspaces.list.getSnapshot()
+      let workspaceId = ws.items[0]?.workspaceId
+      const hostHome = runtime.connection?.generation.getSnapshot()?.host.home
+      const isWsl = hostHome !== undefined
+        ? isWslStylePath(hostHome)
+        : ws.items.some((item) => typeof item.path === 'string' && isWslStylePath(item.path))
+      const pathSep = isWsl ? '/' : '\\'
+      const normalize = (path: string): string => path.trim().replace(/\\/g, '/').replace(/\/+$/g, '').toLowerCase()
+      const rootDesired = activeSettings.defaultWorkspace.trim()
+      const normalizedRoot = rootDesired === '' ? '' : isWsl ? normalizeWindowsPathToWsl(rootDesired) : rootDesired
+      if (normalizedRoot !== '') {
+        const existingRootWorkspaceId = ws.items.find((item) => typeof item.path === 'string' && normalize(item.path) === normalize(normalizedRoot))?.workspaceId
+        if (existingRootWorkspaceId !== undefined) {
+          workspaceId = existingRootWorkspaceId
+        } else {
           try {
-            await api('/api/workbench/workspaces/ensure', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: normalizedDesired }) })
-            const created = await runtime.workspaces.create?.({ path: normalizedDesired })
+            await api('/api/workbench/workspaces/ensure', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: normalizedRoot }) })
+            const created = await runtime.workspaces.create?.({ path: normalizedRoot })
             if (typeof created?.workspaceId === 'string' && created.workspaceId !== '') workspaceId = created.workspaceId
-            // 自动生成的任务工作区回写到任务；用户手动填写的特殊路径不会被覆盖。
-            if (task !== null && (task.workspacePath === null || isAutoTaskWorkspacePath(task.workspacePath, task.id)) && normalizedDesired !== '') {
-              void api(`/api/workbench/tasks/${task.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ workspacePath: normalizedDesired }) }).catch(() => undefined)
-            }
-          } catch { /* 目录创建/注册失败则回退当前工作区 */ }
+          } catch { /* 根工作区创建/注册失败则回退当前工作区 */ }
         }
-        if (workspaceId === undefined) throw new Error('没有可用工作区，请先在 DSH 中打开一个工作区')
-        id = await runtime.uiWorkspace.connectWorkspace(workspaceId)
-        binding = runtime.sessions.binding(id)
       }
+      const hasCustomTaskFolder = task?.workspacePath !== null && task?.workspacePath !== undefined && task.workspacePath.trim() !== '' && !isAutoTaskWorkspacePath(task.workspacePath, task.id)
+      if (hasCustomTaskFolder && task !== null) {
+        taskFolderPath = task.workspacePath ?? ''
+      } else if (activeSettings.autoCreateTypeFolders && normalizedRoot !== '' && reservedTaskId !== '') {
+        taskFolderRelative = taskWorkspaceFolderName(reservedTaskId)
+        taskFolderPath = joinPath(normalizedRoot, taskFolderRelative, pathSep)
+        try {
+          await api('/api/workbench/workspaces/ensure', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: taskFolderPath }) })
+          if (task !== null && (task.workspacePath === null || isAutoTaskWorkspacePath(task.workspacePath, task.id))) {
+            void api(`/api/workbench/tasks/${task.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ workspacePath: taskFolderPath }) }).catch(() => undefined)
+          }
+        } catch { /* 任务资料夹创建失败不阻断会话 */ }
+      }
+      if (workspaceId === undefined) throw new Error('没有可用工作区，请先在 DSH 中打开一个工作区')
+      const id = await runtime.uiWorkspace.connectWorkspace(workspaceId)
+      const binding = runtime.sessions.binding(id)
       if (binding === undefined) throw new Error('会话绑定未就绪，请稍后重试')
+      const workspaceRootLabel = normalizedRoot !== '' ? normalizedRoot : '当前连接工作区'
+      const taskFolderPrompt = taskFolderPath === ''
+        ? ''
+        : `\n\n工作区根目录：${workspaceRootLabel}\n任务资料夹：${taskFolderPath}${taskFolderRelative !== '' ? `\n任务资料夹相对路径：./${taskFolderRelative}/` : ''}\n如需创建或修改本任务相关文件，请放在${taskFolderRelative !== '' ? `工作区内的 ./${taskFolderRelative}/` : '上述任务资料夹'}，不要在工作区根目录散放文件。`
       await binding.session.rename(mode === 'idea_association' ? '点子关联' : mode === 'idea_brainstorm' ? '点子头脑风暴' : mode === 'knowledge_doc' ? `知识总结：${docContext?.name ?? '本地文档'}` : mode === 'report' ? `${text.startsWith('week:') ? '周报' : '日报'}：${text.split(':')[1] ?? ''}` : mode === 'plan' ? `AI 计划：${planAnchor.slice(5)}` : mode === 'clarify' ? `澄清：${text.slice(0, 24)}` : mode === 'consult' ? `协助：${task?.title.slice(0, 24)}` : mode === 'breakdown' ? `拆解：${task?.title.slice(0, 24)}` : mode === 'review' ? `复盘：${task?.title.slice(0, 24)}` : `执行：${task?.title.slice(0, 24)}`).catch(() => undefined)
       let reportContextText = ''
       if (mode === 'report') {
@@ -1421,14 +1428,14 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
         : mode === 'plan'
         ? planPrompt
         : mode === 'clarify'
-        ? `你是“个人工作台”的任务澄清助手。请按 workbench-intake 规范执行。\n\n用户想创建的任务是：\n「${text}」\n\n当前时间：${new Date().toISOString()}\n默认 AI 工作区：${settings.defaultWorkspace || '未设置'}\n\n请先澄清必要信息（一次一个主题，最多5轮）。如果用户对该任务的 AI 会话有指定工作区，请询问具体路径，并在调用 workbench_submit_task 时传入 workspace_path；否则留空使用默认工作区。信息足够后调用 workbench_submit_task 提交结构化任务草稿。不要执行任务本身。`
+        ? `你是“个人工作台”的任务澄清助手。请按 workbench-intake 规范执行。\n\n用户想创建的任务是：\n「${text}」\n\n当前时间：${new Date().toISOString()}\nAI 工作区根目录：${workspaceRootLabel}\n本次预分配任务 id：${reservedTaskId}${taskFolderPath !== '' ? `\n任务资料夹：${taskFolderPath}${taskFolderRelative !== '' ? `\n任务资料夹相对路径：./${taskFolderRelative}/` : ''}` : ''}\n\n请先澄清必要信息（一次一个主题，最多5轮）。除非用户明确要求为这条任务指定资料夹，否则不要再询问工作区路径。信息足够后调用 workbench_submit_task 提交结构化任务草稿，并且必须传入 task_id="${reservedTaskId}"${taskFolderPath !== '' ? `、workspace_path="${taskFolderPath}"` : ''}。如需在澄清阶段创建文件，请放在${taskFolderRelative !== '' ? `工作区内的 ./${taskFolderRelative}/` : '任务资料夹'}。不要执行任务本身。`
         : mode === 'consult'
-          ? `你是“个人工作台”的任务协助助手。请针对下面这个任务提供咨询、拆解或复盘建议（咨询模式不执行）。\n\n任务 id：${task?.id}\n任务标题：${task?.title}\n任务描述：${task?.description || '（无）'}\n类型：${task?.typeCode} 优先级：${task?.priorityCode} 状态：${task?.statusCode}\n截止：${task?.effectiveDueAt ?? task?.dueAt ?? '无'}\n${memoryContext !== '' ? `\n任务共享记忆（同一任务/子树）：\n${memoryContext}` : ''}\n\n请先理解任务，再给出建议；如果信息不足，可以一次问一个问题。\n\n重要：如果用户要求把结论/补充信息保存回任务，请调用 workbench_update_task(task_id="${task?.id ?? ''}", description="...") 更新原任务；绝对不要调用 workbench_submit_task 新建任务。`
+          ? `你是“个人工作台”的任务协助助手。请针对下面这个任务提供咨询、拆解或复盘建议（咨询模式不执行）。\n\n任务 id：${task?.id}\n任务标题：${task?.title}\n任务描述：${task?.description || '（无）'}\n类型：${task?.typeCode} 优先级：${task?.priorityCode} 状态：${task?.statusCode}\n截止：${task?.effectiveDueAt ?? task?.dueAt ?? '无'}${taskFolderPrompt}\n${memoryContext !== '' ? `\n任务共享记忆（同一任务/子树）：\n${memoryContext}` : ''}\n\n请先理解任务，再给出建议；如果信息不足，可以一次问一个问题。\n\n重要：如果用户要求把结论/补充信息保存回任务，请调用 workbench_update_task(task_id="${task?.id ?? ''}", description="...") 更新原任务；绝对不要调用 workbench_submit_task 新建任务。`
           : mode === 'breakdown'
-            ? `你是“个人工作台”的任务拆解助手。请分析下面这个任务，并调用 workbench_propose_subtasks 提交子任务提案。\n\n父任务 id：${task?.id}\n任务标题：${task?.title}\n任务描述：${task?.description || '（无）'}\n类型：${task?.typeCode} 优先级：${task?.priorityCode} 截止：${task?.effectiveDueAt ?? task?.dueAt ?? '无'}\n${memoryContext !== '' ? `\n任务共享记忆（同一任务/子树）：\n${memoryContext}` : ''}\n\n粒度规则：每层 2-6 个、最大深度 3 层、叶子 15-240 分钟且有可验证完成标准；子任务的 type_code/priority_code 默认继承父任务；若任务太小，设置 no_breakdown_needed=true。只提交提案，不要执行。如果用户对提案提出修改意见，请带上上一次工具返回的 draft_id 再次调用 workbench_propose_subtasks 更新同一份提案。`
+            ? `你是“个人工作台”的任务拆解助手。请分析下面这个任务，并调用 workbench_propose_subtasks 提交子任务提案。\n\n父任务 id：${task?.id}\n任务标题：${task?.title}\n任务描述：${task?.description || '（无）'}\n类型：${task?.typeCode} 优先级：${task?.priorityCode} 截止：${task?.effectiveDueAt ?? task?.dueAt ?? '无'}${taskFolderPrompt}\n${memoryContext !== '' ? `\n任务共享记忆（同一任务/子树）：\n${memoryContext}` : ''}\n\n粒度规则：每层 2-6 个、最大深度 3 层、叶子 15-240 分钟且有可验证完成标准；子任务的 type_code/priority_code 默认继承父任务；若任务太小，设置 no_breakdown_needed=true。只提交提案，不要执行。如果用户对提案提出修改意见，请带上上一次工具返回的 draft_id 再次调用 workbench_propose_subtasks 更新同一份提案。`
             : mode === 'review'
-              ? `你是“个人工作台”的任务复盘助手。请对下面这个已完成任务做复盘：\n\n任务 id：${task?.id}\n任务标题：${task?.title}\n任务描述：${task?.description || '（无）'}\n类型：${task?.typeCode} 优先级：${task?.priorityCode}\n${memoryContext !== '' ? `\n任务共享记忆（同一任务/子树）：\n${memoryContext}` : ''}\n\n请从“做得好 / 做得不好 / 下次改进”三个角度输出 Markdown，并调用 workbench_submit_review(task_id="${task?.id ?? ''}", summary_md="...", lessons=[{"title":"...","content":"..."}])。`
-              : `你是“个人工作台”的任务执行助手。请直接完成下面这个任务，不要反复确认已知信息。\n\n任务 id：${task?.id}\n任务标题：${task?.title}\n任务描述：${task?.description || '（无）'}\n类型：${task?.typeCode} 优先级：${task?.priorityCode}\n截止：${task?.effectiveDueAt ?? task?.dueAt ?? '无'}\n${memoryContext !== '' ? `\n任务共享记忆（同一任务/子树，父任务会话会看到整棵子树上下文）：\n${memoryContext}` : ''}\n${previousSessions.length > 0 ? `\n该任务此前已有执行会话：${previousSessions.map((s) => String(s.session_id ?? '')).filter((x) => x !== '').join('、')}\n若这些会话有未完成上下文，请先向用户索取上一会话的总结/未完成事项再继续，不要重复已完成工作。` : ''}\n\n执行过程中请遵守：\n- 如果有关键上下文、阶段性结论、决策或未完成事项，请调用 workbench_save_task_memory(task_id="${task?.id ?? ''}", content="...", kind="note|decision|summary") 写入任务共享记忆，便于后续会话续作。\n- 若当前任务是父任务，且你直接完成父任务，验收通过后系统会级联完成所有未完成子任务。\n- 完成后调用 workbench_request_completion(task_id="${task?.id ?? ''}", summary="2-4句完成总结")，等待用户在个人工作台验收；在用户验收通过前，任务不算完成，不要声称已经完成。若任务无法完成，如实说明原因，不要提交验收。`
+              ? `你是“个人工作台”的任务复盘助手。请对下面这个已完成任务做复盘：\n\n任务 id：${task?.id}\n任务标题：${task?.title}\n任务描述：${task?.description || '（无）'}\n类型：${task?.typeCode} 优先级：${task?.priorityCode}${taskFolderPrompt}\n${memoryContext !== '' ? `\n任务共享记忆（同一任务/子树）：\n${memoryContext}` : ''}\n\n请从“做得好 / 做得不好 / 下次改进”三个角度输出 Markdown，并调用 workbench_submit_review(task_id="${task?.id ?? ''}", summary_md="...", lessons=[{"title":"...","content":"..."}])。`
+              : `你是“个人工作台”的任务执行助手。请直接完成下面这个任务，不要反复确认已知信息。\n\n任务 id：${task?.id}\n任务标题：${task?.title}\n任务描述：${task?.description || '（无）'}\n类型：${task?.typeCode} 优先级：${task?.priorityCode}\n截止：${task?.effectiveDueAt ?? task?.dueAt ?? '无'}${taskFolderPrompt}\n${memoryContext !== '' ? `\n任务共享记忆（同一任务/子树，父任务会话会看到整棵子树上下文）：\n${memoryContext}` : ''}\n${previousSessions.length > 0 ? `\n该任务此前已有执行会话：${previousSessions.map((s) => String(s.session_id ?? '')).filter((x) => x !== '').join('、')}\n若这些会话有未完成上下文，请先向用户索取上一会话的总结/未完成事项再继续，不要重复已完成工作。` : ''}\n\n执行过程中请遵守：\n- 如果有关键上下文、阶段性结论、决策或未完成事项，请调用 workbench_save_task_memory(task_id="${task?.id ?? ''}", content="...", kind="note|decision|summary") 写入任务共享记忆，便于后续会话续作。\n- 若当前任务是父任务，且你直接完成父任务，验收通过后系统会级联完成所有未完成子任务。\n- 完成后调用 workbench_request_completion(task_id="${task?.id ?? ''}", summary="2-4句完成总结")，等待用户在个人工作台验收；在用户验收通过前，任务不算完成，不要声称已经完成。若任务无法完成，如实说明原因，不要提交验收。`
       if (mode === 'execute') {
         if (task === null) throw new Error('执行模式需要选择一个任务')
         if (task.statusCode === 'done' || task.statusCode === 'cancelled') throw new Error('该任务已完成或已取消，不能再次执行')
@@ -1807,12 +1814,12 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
           {showSettings && (
             <div className="wb-form-panel">
               <h4><Icon name="settings" />工作台设置</h4>
-              <label className="full">默认 AI 会话工作区（任务未指定时使用）
+              <label className="full">AI 工作区根目录
                 <input value={settings.defaultWorkspace} onChange={(e) => setSettings((prev) => ({ ...prev, defaultWorkspace: e.target.value }))} placeholder={DEFAULT_AI_WORKSPACE_HINT} />
               </label>
               <label className="full" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <input type="checkbox" checked={settings.autoCreateTypeFolders} onChange={(e) => setSettings((prev) => ({ ...prev, autoCreateTypeFolders: e.target.checked }))} />
-                自动为每个任务创建独立文件夹（用任务 ID 命名）
+                自动为每个任务创建资料夹（位于根目录下，用任务 ID 命名）
               </label>
               <label className="full" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <input type="checkbox" checked={settings.desktopNotify} onChange={(e) => setSettings((prev) => ({ ...prev, desktopNotify: e.target.checked }))} />
@@ -1875,7 +1882,7 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
                 </div>
               </div>
               <div className="full" style={{ display: 'flex', gap: 8 }}>
-                <button className="wb-btn primary lg" onClick={() => void api<{ settings: { defaultWorkspace: string; autoCreateTypeFolders: boolean; desktopNotify: boolean } }>('/api/workbench/settings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(settings) }).then((r) => { setSettings(r.settings); setNotice('设置已保存'); setShowSettings(false) }).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))}><Icon name="check" />保存设置</button>
+                <button className="wb-btn primary lg" onClick={() => void api<{ settings: { defaultWorkspace: string; autoCreateTypeFolders: boolean; desktopNotify: boolean } }>('/api/workbench/settings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(settings) }).then((r) => { setSettings(r.settings); setSettingsLoaded(true); setNotice('设置已保存'); setShowSettings(false) }).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))}><Icon name="check" />保存设置</button>
                 <button className="wb-btn" onClick={() => setShowSettings(false)}>取消</button>
               </div>
             </div>
@@ -1901,7 +1908,7 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
               <label>状态<select name="status" defaultValue="todo">{dictOf('status').map((d) => <option key={d.code} value={d.code}>{d.name}</option>)}</select></label>
               <label>截止时间<input name="due" type="datetime-local" /></label>
               <label>重复<select name="recurrence" defaultValue="none">{dictOf('recurrence').map((d) => <option key={d.code} value={d.code}>{d.name}</option>)}</select></label>
-              <label>AI 会话工作区（可选，留空用默认）<input name="workspacePath" placeholder={settings.defaultWorkspace || '默认工作区未设置'} /></label>
+              <label>任务资料夹（可选，留空自动按任务 ID 生成）<input name="workspacePath" placeholder={settings.defaultWorkspace ? `${settings.defaultWorkspace}\\任务ID` : '默认工作区未设置'} /></label>
               <label className="full">描述<textarea name="description" rows={2} placeholder="背景 / 目标 / 验收标准（Markdown）" /></label>
               <div className="full" style={{ display: 'flex', gap: 8 }}><button className="wb-btn primary lg" type="submit"><Icon name="check" />保存任务</button><button className="wb-btn" type="button" onClick={() => setShowForm(false)}>取消</button></div>
             </form>
@@ -2403,7 +2410,8 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
                         </div>
                       )}
                       <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>截止：{selected.task.effectiveDueAt === null ? '无' : fmtTime(selected.task.effectiveDueAt)}{selected.task.dueAt === null && selected.task.effectiveDueAt !== null ? '（继承父任务）' : ''}</div>
-                      <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>AI 工作区：{selected.task.workspacePath ?? (settings.defaultWorkspace || '默认工作区未设置')}</div>
+                      <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>AI 工作区根目录：{settings.defaultWorkspace || '默认工作区未设置'}</div>
+                      <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>任务资料夹：{selected.task.workspacePath ?? (settings.defaultWorkspace ? `${settings.defaultWorkspace}\\${selected.task.id}` : '未生成')}</div>
                       <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>
                         重复：{dicts.find((d) => d.kind === 'recurrence' && d.code === (selected.task.recurrenceCode ?? 'none'))?.name ?? '不重复'}
                         {selected.task.recurrenceMasterId !== null ? '（自动生成的实例）' : selected.task.recurrenceCode !== null && selected.task.recurrenceCode !== 'none' ? `（模板，已生成到 ${selected.task.recurrenceLastGenerated ?? '—'}）` : ''}
@@ -2437,7 +2445,7 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
                         ? <label>重复<select value={editDraft.recurrenceCode} onChange={(e) => setEditDraft((prev) => prev === null ? prev : { ...prev, recurrenceCode: e.target.value })}>{dictOf('recurrence').map((d) => <option key={d.code} value={d.code}>{d.name}</option>)}</select></label>
                         : <div style={{ fontSize: 12, color: '#999', alignSelf: 'center' }}>重复：由模板任务管理</div>}
                       <label>截止时间<input type="datetime-local" value={editDraft.dueLocal} onChange={(e) => setEditDraft((prev) => prev === null ? prev : { ...prev, dueLocal: e.target.value })} /></label>
-                      <label className="full">AI 会话工作区（留空使用默认）<input value={editDraft.workspacePath} onChange={(e) => setEditDraft((prev) => prev === null ? prev : { ...prev, workspacePath: e.target.value })} placeholder={settings.defaultWorkspace || '默认工作区未设置'} /></label>
+                      <label className="full">任务资料夹（留空自动按任务 ID 生成）<input value={editDraft.workspacePath} onChange={(e) => setEditDraft((prev) => prev === null ? prev : { ...prev, workspacePath: e.target.value })} placeholder={settings.defaultWorkspace ? `${settings.defaultWorkspace}\\${selected.task.id}` : '默认工作区未设置'} /></label>
                       <label className="full">描述（Markdown）<textarea rows={6} value={editDraft.description} onChange={(e) => setEditDraft((prev) => prev === null ? prev : { ...prev, description: e.target.value })} /></label>
                       <div className="full" style={{ display: 'flex', gap: 8 }}><button className="wb-btn primary" type="submit"><Icon name="check" />保存</button><button className="wb-btn" type="button" onClick={() => setEditDraft(null)}>取消</button></div>
                     </form>

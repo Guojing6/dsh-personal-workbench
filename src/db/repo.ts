@@ -28,6 +28,7 @@ export interface DictionaryEntry {
 }
 
 export interface TaskInput {
+  id?: string
   title: string
   description?: string
   typeCode: string
@@ -296,7 +297,7 @@ export function dictionaryUsageCount(db: DatabaseSync, kind: string, code: strin
 // ---------------------------------------------------------------------------
 
 export function createTask(db: DatabaseSync, input: TaskInput, actor = 'user', at = nowIso()): TaskRow {
-  const id = randomUUID()
+  const id = input.id ?? randomUUID()
   const task: TaskRow = {
     id,
     parentId: input.parentId ?? null,
@@ -679,12 +680,13 @@ function setDraftStatus(db: DatabaseSync, id: string, statusCode: string, at = n
 export function confirmTaskDraft(db: DatabaseSync, draftId: string, actor = 'user', at = nowIso()): TaskRow | undefined {
   const draft = getDraft(db, draftId)
   if (draft === undefined || draft.kindCode !== 'task') return undefined
-  const payload = draft.payload as Partial<TaskInput> & { reminderOffsetMinutes?: number; reminder_offset_minutes?: number; subtasks?: Array<Partial<TaskInput> & Record<string, unknown>> }
+  const payload = draft.payload as Partial<TaskInput> & { taskId?: string; reminderOffsetMinutes?: number; reminder_offset_minutes?: number; subtasks?: Array<Partial<TaskInput> & Record<string, unknown>> }
   const title = typeof payload.title === 'string' ? payload.title : ''
   if (title.trim() === '') throw new Error('draft payload requires a non-empty title')
   db.exec('BEGIN')
   try {
     const task = createTask(db, {
+      id: typeof payload.id === 'string' && payload.id !== '' ? payload.id : typeof payload.taskId === 'string' && payload.taskId !== '' ? payload.taskId : undefined,
       title,
       description: typeof payload.description === 'string' ? payload.description : undefined,
       typeCode: String(payload.typeCode ?? ''),

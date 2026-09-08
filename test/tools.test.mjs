@@ -15,11 +15,14 @@ test('agent tools write pending drafts and update tasks', async () => {
     seedDictionaries(db)
     const submit = submitTaskTool(db)
     const out = await submit.execute(
-      { title: 'clarified task', type_code: 'client_meeting', priority_code: 'p0' },
-      { agent: { session: { id: 'sess-1' } } },
+      { task_id: 'reserved-task-1', title: 'clarified task', type_code: 'client_meeting', priority_code: 'p0' },
+      { agent: { session: { id: 'sess-1', header: { cwd: 'D:\\Documents\\aitasks\\old-title-folder' } } } },
     )
     assert.match(out, /草稿已保存/)
-    assert.ok(getDraftBySession(db, 'sess-1'))
+    const quickDraft = getDraftBySession(db, 'sess-1')
+    assert.ok(quickDraft)
+    assert.equal(quickDraft.payload.id, 'reserved-task-1')
+    assert.equal(quickDraft.payload.workspacePath, null)
 
     // AI 可能发明/使用字典外的 type_code：training 应合法，未知 code 应回退不报错
     const training = await submit.execute({ title: '学做东北菜', type_code: 'training', priority_code: 'p2' }, { agent: { session: { id: 'sess-training' } } })

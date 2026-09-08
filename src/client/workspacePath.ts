@@ -58,7 +58,7 @@ export function taskWorkspaceFolderName(taskId: string): string {
 }
 
 /**
- * 判断一个任务工作区是否像系统自动生成的路径。
+ * 判断一个任务资料夹是否像系统自动生成的路径。
  * 自动生成路径始终以任务 id 文件夹结尾；这类路径在默认工作区改变后可以迁移到新的默认目录。
  */
 export function isAutoTaskWorkspacePath(path: string, taskId: string): boolean {
