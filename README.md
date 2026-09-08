@@ -1,6 +1,6 @@
 # dsh-personal-workbench
 
-[![npm version](https://img.shields.io/npm/v/@dely0/dsh-personal-workbench)](https://www.npmjs.com/package/@dely0/dsh-personal-workbench)
+[![npm version](https://img.shields.io/npm/v/@guojing6/dsh-personal-workbench)](https://www.npmjs.com/package/@guojing6/dsh-personal-workbench)
 
 A personal workbench plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) Web.
 Turn your DSH into a **calendar + task list + AI assistant workbench**.
@@ -19,7 +19,7 @@ Turn your DSH into a **calendar + task list + AI assistant workbench**.
 - ✨ 自然语言快速录入，AI 澄清后自动生成任务
 - 🧠 每个任务可关联多个 AI 会话：澄清 / 咨询 / 拆解 / 执行 / 复盘
 - ✅ 任务执行采用“AI 申请完成 → 用户验收”闭环
-- 🗂️ 每个任务一个 AI 会话工作区（默认工作区 + 任务名文件夹）
+- 🗂️ 每个任务一个 AI 会话工作区（默认使用当前用户 Documents/aitasks + 任务 ID 文件夹，可在设置中改默认目录）
 - 📝 Markdown 任务描述、复盘记录、变更历史
 - ⏰ 到期提醒（页内横幅）
 - 🗄️ 归档区、任务恢复
@@ -80,19 +80,19 @@ Turn your DSH into a **calendar + task list + AI assistant workbench**.
 ### 从 npm 安装（推荐）
 
 ```sh
-dsh plugin --profile web add @dely0/dsh-personal-workbench
+dsh plugin --profile web add @guojing6/dsh-personal-workbench
 ```
 
 或使用 npm 直接安装到项目：
 
 ```sh
-npm install @dely0/dsh-personal-workbench
+npm install @guojing6/dsh-personal-workbench
 ```
 
 ### 从 GitHub 安装
 
 ```sh
-dsh plugin --profile web add git+https://github.com/Dely0/dsh-personal-workbench.git
+dsh plugin --profile web add git+https://github.com/Guojing6/dsh-personal-workbench.git
 ```
 
 或安装 Release tarball：
@@ -106,7 +106,7 @@ dsh plugin --profile web add file:/path/to/dsh-personal-workbench-<version>.tgz
 ### 从源码开发
 
 ```sh
-git clone https://github.com/Dely0/dsh-personal-workbench.git
+git clone https://github.com/Guojing6/dsh-personal-workbench.git
 cd dsh-personal-workbench
 pnpm install
 pnpm check      # 类型检查 + 构建
@@ -179,10 +179,10 @@ All task data is stored locally under `~/.dsh/workbench`.
 
 ```sh
 # From npm (recommended)
-dsh plugin --profile web add @dely0/dsh-personal-workbench
+dsh plugin --profile web add @guojing6/dsh-personal-workbench
 
 # From source or release tarball
-dsh plugin --profile web add git+https://github.com/Dely0/dsh-personal-workbench.git
+dsh plugin --profile web add git+https://github.com/Guojing6/dsh-personal-workbench.git
 dsh plugin --profile web add file:/path/to/dsh-personal-workbench-<version>.tgz
 ```
 

@@ -19,7 +19,7 @@ import {
   type TaskSortKey,
   type TaskTreeNode,
 } from './taskFilterSort.js'
-import { isWslStylePath, joinPath, normalizeWindowsPathToWsl } from './workspacePath.js'
+import { isAutoTaskWorkspacePath, isWslStylePath, joinPath, normalizeWindowsPathToWsl, taskWorkspaceFolderName } from './workspacePath.js'
 
 const PANEL_NAME = 'personal-workbench'
 const ACTIVE_ATTR = 'data-dsh-personal-workbench-active'
@@ -320,10 +320,7 @@ const api = async <T,>(path: string, init?: RequestInit): Promise<T> => {
   return body as T
 }
 
-const folderForText = (text: string): string => {
-  const cleaned = text.trim().replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').slice(0, 24).trim()
-  return cleaned === '' ? '未命名任务' : cleaned
-}
+const DEFAULT_AI_WORKSPACE_HINT = '自动：Documents\\aitasks'
 const clientFileLinkToPath = (link: string): string => {
   const trimmed = link.trim()
   if (!/^file:/i.test(trimmed)) return trimmed
@@ -1140,6 +1137,7 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
                 body: `截止时间：${fmtTime(reminder.dueAt)}`,
                 tag: `dsh-personal-workbench:${reminder.reminderId}`,
               })
+              void fireReminder(reminder.reminderId).catch(() => undefined)
             } catch { /* 部分浏览器限制通知构造，忽略降级为页内横幅 */ }
           }
         }
@@ -1314,11 +1312,9 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
       let desired = ''
       if (task !== null) {
         desired = task.workspacePath ?? ''
-        if (desired === '' && settings.defaultWorkspace !== '' && settings.autoCreateTypeFolders) {
-          desired = joinPath(settings.defaultWorkspace, folderForText(task.title), pathSep)
+        if (settings.defaultWorkspace !== '' && settings.autoCreateTypeFolders && (desired === '' || isAutoTaskWorkspacePath(desired, task.id))) {
+          desired = joinPath(settings.defaultWorkspace, taskWorkspaceFolderName(task.id), pathSep)
         }
-      } else if (mode === 'clarify' && settings.defaultWorkspace !== '' && settings.autoCreateTypeFolders) {
-        desired = joinPath(settings.defaultWorkspace, folderForText(text || '需求澄清'), pathSep)
       }
       // WSL 下把 Windows 盘符路径（D:\Code）统一归一化为真实路径（/mnt/d/Code）。
       // 相对路径和已是 /mnt/... 的路径不会被转换；原生 Windows 上不做转换。
@@ -1328,8 +1324,8 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
           await api('/api/workbench/workspaces/ensure', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: normalizedDesired }) })
           const created = await runtime.workspaces.create?.({ path: normalizedDesired })
           if (typeof created?.workspaceId === 'string' && created.workspaceId !== '') workspaceId = created.workspaceId
-          // 任务没有显式工作区时，把解析出的任务文件夹回写，保证后续会话都进同一文件夹
-          if (task !== null && task.workspacePath === null && normalizedDesired !== '') {
+          // 自动生成的任务工作区回写到任务；用户手动填写的特殊路径不会被覆盖。
+          if (task !== null && (task.workspacePath === null || isAutoTaskWorkspacePath(task.workspacePath, task.id)) && normalizedDesired !== '') {
             void api(`/api/workbench/tasks/${task.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ workspacePath: normalizedDesired }) }).catch(() => undefined)
           }
         } catch { /* 目录创建/注册失败则回退当前工作区 */ }
@@ -1786,11 +1782,11 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
             <div className="wb-form-panel">
               <h4><Icon name="settings" />工作台设置</h4>
               <label className="full">默认 AI 会话工作区（任务未指定时使用）
-                <input value={settings.defaultWorkspace} onChange={(e) => setSettings((prev) => ({ ...prev, defaultWorkspace: e.target.value }))} placeholder="例如 D:\Code\AI-Workspace" />
+                <input value={settings.defaultWorkspace} onChange={(e) => setSettings((prev) => ({ ...prev, defaultWorkspace: e.target.value }))} placeholder={DEFAULT_AI_WORKSPACE_HINT} />
               </label>
               <label className="full" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <input type="checkbox" checked={settings.autoCreateTypeFolders} onChange={(e) => setSettings((prev) => ({ ...prev, autoCreateTypeFolders: e.target.checked }))} />
-                自动为每个任务创建独立文件夹（用任务名命名）
+                自动为每个任务创建独立文件夹（用任务 ID 命名）
               </label>
               <label className="full" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <input type="checkbox" checked={settings.desktopNotify} onChange={(e) => setSettings((prev) => ({ ...prev, desktopNotify: e.target.checked }))} />
@@ -1853,7 +1849,7 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
                 </div>
               </div>
               <div className="full" style={{ display: 'flex', gap: 8 }}>
-                <button className="wb-btn primary lg" onClick={() => void api('/api/workbench/settings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(settings) }).then(() => { setNotice('设置已保存'); setShowSettings(false) }).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))}><Icon name="check" />保存设置</button>
+                <button className="wb-btn primary lg" onClick={() => void api<{ settings: { defaultWorkspace: string; autoCreateTypeFolders: boolean; desktopNotify: boolean } }>('/api/workbench/settings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(settings) }).then((r) => { setSettings(r.settings); setNotice('设置已保存'); setShowSettings(false) }).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))}><Icon name="check" />保存设置</button>
                 <button className="wb-btn" onClick={() => setShowSettings(false)}>取消</button>
               </div>
             </div>

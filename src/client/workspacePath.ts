@@ -47,3 +47,22 @@ export function joinPath(base: string, folder: string, separator: '/' | '\\' = '
 export function isWslStylePath(input: string): boolean {
   return input.startsWith('/') && !/^[A-Za-z]:[\\/]/.test(input)
 }
+
+/**
+ * 为任务生成稳定、唯一的工作区文件夹名。
+ * 直接使用任务 id，避免标题变化、同名任务和 Windows 文件名限制带来的目录混乱。
+ */
+export function taskWorkspaceFolderName(taskId: string): string {
+  const cleaned = taskId.trim().replace(/[^A-Za-z0-9_-]/g, '')
+  return cleaned === '' ? 'task' : cleaned
+}
+
+/**
+ * 判断一个任务工作区是否像系统自动生成的路径。
+ * 自动生成路径始终以任务 id 文件夹结尾；这类路径在默认工作区改变后可以迁移到新的默认目录。
+ */
+export function isAutoTaskWorkspacePath(path: string, taskId: string): boolean {
+  const folder = taskWorkspaceFolderName(taskId)
+  const normalized = path.trim().replace(/\\/g, '/').replace(/\/+$/g, '')
+  return normalized.endsWith(`/${folder}`) || normalized === folder
+}

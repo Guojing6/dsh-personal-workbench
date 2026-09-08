@@ -2,8 +2,10 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   isWslStylePath,
+  isAutoTaskWorkspacePath,
   joinPath,
   normalizeWindowsPathToWsl,
+  taskWorkspaceFolderName,
 } from '../lib/client/workspacePath.js'
 
 test('workspacePath: converts Windows drive paths to WSL /mnt paths', () => {
@@ -53,4 +55,18 @@ test('workspacePath: isWslStylePath distinguishes POSIX/WSL paths from Windows d
   assert.equal(isWslStylePath('D:\\Code'), false)
   assert.equal(isWslStylePath('D:/Code'), false)
   assert.equal(isWslStylePath('Code'), false)
+})
+
+test('workspacePath: taskWorkspaceFolderName uses only task id for stable folders', () => {
+  assert.equal(taskWorkspaceFolderName('task_abcdef123456'), 'task_abcdef123456')
+  assert.equal(taskWorkspaceFolderName('  abc-123_def  '), 'abc-123_def')
+  assert.equal(taskWorkspaceFolderName('task:abc/def'), 'taskabcdef')
+  assert.equal(taskWorkspaceFolderName('   '), 'task')
+})
+
+test('workspacePath: isAutoTaskWorkspacePath detects task-id folders', () => {
+  assert.equal(isAutoTaskWorkspacePath('C:\\Users\\me\\Documents\\aitasks\\task_abc', 'task_abc'), true)
+  assert.equal(isAutoTaskWorkspacePath('/mnt/c/Users/me/Documents/aitasks/task_abc/', 'task_abc'), true)
+  assert.equal(isAutoTaskWorkspacePath('D:\\custom\\task_other', 'task_abc'), false)
+  assert.equal(isAutoTaskWorkspacePath('D:\\custom\\handwritten', 'task_abc'), false)
 })
