@@ -208,13 +208,22 @@ html[${PENDING_ATTR}] [${ENTRY_ATTR}]::after { content:''; position:absolute; to
 .wb-session-role-select { background: var(--dsw-alias-bg-base,#17171a); border: 1px solid var(--dsw-alias-border-l1, rgba(255,255,255,.16)); color: inherit; border-radius: 8px; padding: 7px 10px; font: inherit; font-size: 13px; }
 .wb-quick-composer { position:relative; }
 .wb-quick-textarea { width:100%; min-height:118px; background:var(--dsw-alias-bg-base,#17171a); border:1px solid var(--dsw-alias-border-l1,rgba(255,255,255,.18)); color:inherit; border-radius:14px; padding:12px 12px 56px; box-sizing:border-box; font:inherit; font-size:14px; resize:vertical; }
+.wb-quick-composer.has-images .wb-quick-textarea { min-height:184px; padding-bottom:124px; }
 .wb-quick-textarea:focus { border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4f8ef7) 65%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-business-primary, #4f8ef7) 14%, transparent); outline:none; }
+.wb-quick-image-rail { position:absolute; left:12px; right:12px; bottom:50px; display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; padding:2px 0; }
+.wb-quick-image-rail::-webkit-scrollbar { display:none; }
+.wb-quick-image-item { position:relative; flex:0 0 58px; width:58px; height:58px; border-radius:14px; overflow:hidden; border:1px solid var(--dsw-alias-border-l1,rgba(255,255,255,.18)); background:color-mix(in srgb, var(--dsw-alias-label-primary,#fff) 7%, transparent); }
+.wb-quick-image-item img { width:100%; height:100%; object-fit:cover; display:block; }
+.wb-quick-image-remove { position:absolute; top:4px; right:4px; width:18px; height:18px; display:grid; place-items:center; border:none; border-radius:50%; padding:0; color:var(--dsw-alias-label-primary-inverted,#111); background:var(--dsw-alias-label-primary,#fff); cursor:pointer; font-size:13px; line-height:1; opacity:.92; }
 .wb-quick-actions { position:absolute; right:10px; bottom:10px; display:flex; align-items:center; justify-content:flex-end; gap:7px; max-width:none; overflow:visible; }
 .wb-quick-actions .wb-btn { height:32px; overflow:visible; border-radius:999px; padding:0 10px; font-size:12.5px; white-space:nowrap; background:color-mix(in srgb, var(--dsw-alias-bg-layer-2,#222) 84%, transparent); }
 .wb-quick-actions .wb-model-trigger-label { white-space:nowrap; line-height:1.2; }
 .wb-quick-actions .wb-model-trigger { border-color:transparent; background:transparent; color:var(--dsw-alias-label-primary); font-weight:650; padding:0 4px; }
 .wb-quick-actions .wb-model-trigger:hover { background:transparent; color:var(--dsw-alias-label-primary); }
 .wb-model-trigger-effort { color:var(--dsw-alias-label-secondary); font-weight:650; margin-left:4px; }
+.wb-quick-upload-button { width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--dsw-alias-border-l1, rgba(127,127,127,.26)); border-radius:50%; color:var(--dsw-alias-label-secondary); background:color-mix(in srgb, var(--dsw-alias-bg-layer-2,#222) 84%, transparent); cursor:pointer; padding:0; flex:none; }
+.wb-quick-upload-button:hover:not(:disabled) { color:var(--dsw-alias-label-primary); background:color-mix(in srgb, var(--dsw-alias-label-primary,#fff) 8%, transparent); }
+.wb-quick-upload-button:disabled { opacity:.45; cursor:default; }
 .wb-send-button { width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center; border:none; border-radius:50%; background:var(--dsw-alias-label-primary,#fff); color:var(--dsw-alias-bg-base,#111); cursor:pointer; padding:0; flex:none; transition:transform .12s ease, box-shadow .12s ease, opacity .12s ease; }
 .wb-send-button svg { width:18px; height:18px; stroke-width:2.1; }
 .wb-send-button:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 6px 16px rgba(0,0,0,.22); }
@@ -291,9 +300,16 @@ interface Bootstrap { dictionaries: Dict[]; stats: { overdue: number; todayDue: 
 interface TaskDetail { task: Task; children: Task[]; sessions: Array<Record<string, unknown>>; reminders: Array<{ id: string; taskId: string; offsetMinutes: number; methodCode: string; firedAt: string | null }>; events: Array<Record<string, unknown>>; reviews: Array<Record<string, unknown>> }
 interface DraftView { id: string; kindCode: string; statusCode: string; sessionId: string | null; payload: Record<string, unknown> }
 
+type ImageMediaType = 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif'
+type PromptContentPart = { type: 'text'; text: string } | { type: 'image'; mediaType: ImageMediaType; data: string; name?: string }
+interface QuickImageDraft {
+  id: string
+  file: File
+  previewUrl: string
+}
 interface SessionDriver {
   sessionId: string
-  prompt(content: Array<{ type: 'text'; text: string }>, mode: 'queue'): Promise<{ ok?: boolean; error?: unknown }>
+  prompt(content: PromptContentPart[], mode: 'queue'): Promise<{ ok?: boolean; error?: unknown }>
   rename(title: string): Promise<unknown>
 }
 interface ModelSelection {
@@ -372,6 +388,7 @@ const api = async <T,>(path: string, init?: RequestInit): Promise<T> => {
 
 const DEFAULT_AI_WORKSPACE_HINT = '自动：Documents\\ai-workbench\\tasks'
 const QUICK_MODEL_STORAGE_KEY = 'ai-workbench.quickModelSelection'
+const QUICK_IMAGE_MEDIA_TYPES = new Set<string>(['image/png', 'image/jpeg', 'image/webp', 'image/gif'])
 const EMPTY_MODEL_DIRECTORY_STATE: ModelDirectoryState = { current: null, groups: [], failures: [], status: 'idle', error: null }
 const createClientId = (): string => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
@@ -401,6 +418,24 @@ const writeQuickModelSelection = (selection: QuickModelSelection | null): void =
     else localStorage.setItem(QUICK_MODEL_STORAGE_KEY, JSON.stringify(selection))
   } catch { /* ignore localStorage failures */ }
 }
+const isQuickImageFile = (file: File): boolean => QUICK_IMAGE_MEDIA_TYPES.has(file.type)
+const fileToBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
+  const reader = new FileReader()
+  reader.onload = () => {
+    const result = typeof reader.result === 'string' ? reader.result : ''
+    const comma = result.indexOf(',')
+    if (comma < 0) reject(new Error('图片读取失败'))
+    else resolve(result.slice(comma + 1))
+  }
+  reader.onerror = () => reject(reader.error ?? new Error('图片读取失败'))
+  reader.readAsDataURL(file)
+})
+const quickImageToPromptPart = async (image: QuickImageDraft): Promise<PromptContentPart> => ({
+  type: 'image',
+  mediaType: image.file.type as ImageMediaType,
+  data: await fileToBase64(image.file),
+  ...(image.file.name === '' ? {} : { name: image.file.name }),
+})
 const clientFileLinkToPath = (link: string): string => {
   const trimmed = link.trim()
   if (!/^file:/i.test(trimmed)) return trimmed
@@ -514,6 +549,7 @@ function Icon({ name, size = 16 }: { name: string; size?: number }): JSX.Element
     case 'book': return <svg {...common}><path d="M3 2.5h6.5v11H3zM9.5 2.5H13v11H9.5z" /><path d="M3 2.5v11M13 2.5v11" /></svg>
     case 'file': return <svg {...common}><path d="M4 1.5h5.5L13 5v9.5H4z" /><path d="M9.5 1.5V5H13" /></svg>
     case 'folder': return <svg {...common}><path d="M2.5 4h4l1.5 2h5.5v7h-11z" /></svg>
+    case 'image': return <svg {...common}><rect x="2.5" y="3" width="11" height="10" rx="2" /><circle cx="6" cy="6.2" r="1" /><path d="M3.5 12l3.2-3.2 2 2 1.3-1.3 2.5 2.5" /></svg>
     case 'idea': return <svg {...common}><path d="M8 2a4 4 0 0 0-1 7.8V12h2V9.8A4 4 0 0 0 8 2z" /><path d="M6.5 14h3" /></svg>
     case 'chevron': return <svg {...common}><path d="M6 3l5 5-5 5" /></svg>
     case 'model': return <svg {...common}><rect x="2.5" y="3" width="11" height="10" rx="2" /><path d="M5 6h6M5 8.5h4M5 11h2" /></svg>
@@ -1228,7 +1264,10 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
   const [eventsExpanded, setEventsExpanded] = useState(false)
   const [showQuick, setShowQuick] = useState(false)
   const [quickText, setQuickText] = useState('')
+  const [quickImages, setQuickImages] = useState<QuickImageDraft[]>([])
   const [quickModelSelection, setQuickModelSelectionState] = useState<QuickModelSelection | null>(() => readQuickModelSelection())
+  const quickImageInputRef = useRef<HTMLInputElement | null>(null)
+  const quickImagesRef = useRef<QuickImageDraft[]>([])
   const [pendingDraft, setPendingDraft] = useState<DraftView | null>(null)
   const [reminders, setReminders] = useState<Array<{ reminderId: string; taskId: string; title: string; dueAt: string; methodCode: string }>>([])
   const [error, setError] = useState<string | null>(null)
@@ -1282,6 +1321,38 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
 
   const dicts = useMemo(() => bootstrap?.dictionaries ?? [], [bootstrap])
   const dictOf = useCallback((kind: string) => dicts.filter((d) => d.kind === kind), [dicts])
+  useEffect(() => { quickImagesRef.current = quickImages }, [quickImages])
+  useEffect(() => () => {
+    for (const image of quickImagesRef.current) URL.revokeObjectURL(image.previewUrl)
+  }, [])
+  const addQuickImages = useCallback((files: FileList | readonly File[]): void => {
+    const incoming = Array.from(files)
+    const rejected = incoming.filter((file) => !isQuickImageFile(file))
+    const accepted = incoming.filter(isQuickImageFile)
+    if (rejected.length > 0) setError('快速录入仅支持 PNG、JPEG、WebP、GIF 图片')
+    if (accepted.length === 0) return
+    const remaining = Math.max(0, 10 - quickImagesRef.current.length)
+    const nextFiles = accepted.slice(0, remaining)
+    if (nextFiles.length < accepted.length) setError('快速录入最多添加 10 张图片')
+    if (nextFiles.length === 0) return
+    setQuickImages((prev) => [
+      ...prev,
+      ...nextFiles.map((file) => ({ id: createClientId(), file, previewUrl: URL.createObjectURL(file) })),
+    ])
+  }, [])
+  const removeQuickImage = useCallback((id: string): void => {
+    setQuickImages((prev) => {
+      const image = prev.find((item) => item.id === id)
+      if (image !== undefined) URL.revokeObjectURL(image.previewUrl)
+      return prev.filter((item) => item.id !== id)
+    })
+  }, [])
+  const clearQuickImages = useCallback((): void => {
+    setQuickImages((prev) => {
+      for (const image of prev) URL.revokeObjectURL(image.previewUrl)
+      return []
+    })
+  }, [])
 
   const refresh = useCallback(async () => {
     const [boot, list] = await Promise.all([api<Bootstrap>('/api/workbench/bootstrap'), api<{ tasks: Task[] }>('/api/workbench/tasks')])
@@ -1491,8 +1562,8 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
     idea_brainstorm: 'AI 点子头脑风暴',
     knowledge_doc: 'AI 总结本地文档',
   }
-  const startAISession = async (mode: 'clarify' | 'consult' | 'breakdown' | 'execute' | 'review' | 'plan' | 'report' | 'idea_association' | 'idea_brainstorm' | 'knowledge_doc', task: Task | null, text: string, previousSessions: Array<Record<string, unknown>> = [], docContext?: { fileLink: string; content: string; name?: string; truncated?: boolean }): Promise<void> => {
-    if (mode === 'clarify' && text.trim() === '') return
+  const startAISession = async (mode: 'clarify' | 'consult' | 'breakdown' | 'execute' | 'review' | 'plan' | 'report' | 'idea_association' | 'idea_brainstorm' | 'knowledge_doc', task: Task | null, text: string, previousSessions: Array<Record<string, unknown>> = [], docContext?: { fileLink: string; content: string; name?: string; truncated?: boolean }, images: readonly QuickImageDraft[] = []): Promise<void> => {
+    if (mode === 'clarify' && text.trim() === '' && images.length === 0) return
     const customPrompt = mode === 'clarify' ? '' : await askUserPrompt(AI_PROMPT_LABELS[mode] ?? 'AI 会话')
     if (customPrompt === null) return
     const planAnchor = mode === 'plan' ? (/^\d{4}-\d{2}-\d{2}$/.test(text) ? text : localDateString()) : ''
@@ -1588,7 +1659,7 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
       const taskFolderPrompt = taskFolderPath === ''
         ? ''
         : `\n\n工作区根目录：${workspaceRootLabel}\n任务资料夹：${taskFolderPath}${taskFolderRelative !== '' ? `\n任务资料夹相对路径：./${taskFolderRelative}/` : ''}\n如需创建或修改本任务相关文件，请放在${taskFolderRelative !== '' ? `工作区内的 ./${taskFolderRelative}/` : '上述任务资料夹'}，不要在工作区根目录散放文件。`
-      await binding.session.rename(mode === 'idea_association' ? '点子关联' : mode === 'idea_brainstorm' ? '点子头脑风暴' : mode === 'knowledge_doc' ? `知识总结：${docContext?.name ?? '本地文档'}` : mode === 'report' ? `${text.startsWith('week:') ? '周报' : '日报'}：${text.split(':')[1] ?? ''}` : mode === 'plan' ? `AI 计划：${planAnchor.slice(5)}` : mode === 'clarify' ? `澄清：${text.slice(0, 24)}` : mode === 'consult' ? `协助：${task?.title.slice(0, 24)}` : mode === 'breakdown' ? `拆解：${task?.title.slice(0, 24)}` : mode === 'review' ? `复盘：${task?.title.slice(0, 24)}` : `执行：${task?.title.slice(0, 24)}`).catch(() => undefined)
+      await binding.session.rename(mode === 'idea_association' ? '点子关联' : mode === 'idea_brainstorm' ? '点子头脑风暴' : mode === 'knowledge_doc' ? `知识总结：${docContext?.name ?? '本地文档'}` : mode === 'report' ? `${text.startsWith('week:') ? '周报' : '日报'}：${text.split(':')[1] ?? ''}` : mode === 'plan' ? `AI 计划：${planAnchor.slice(5)}` : mode === 'clarify' ? `澄清：${text.trim() === '' ? '图片任务' : text.slice(0, 24)}` : mode === 'consult' ? `协助：${task?.title.slice(0, 24)}` : mode === 'breakdown' ? `拆解：${task?.title.slice(0, 24)}` : mode === 'review' ? `复盘：${task?.title.slice(0, 24)}` : `执行：${task?.title.slice(0, 24)}`).catch(() => undefined)
       let reportContextText = ''
       if (mode === 'report') {
         const [periodCode, periodStart] = text.split(':')
@@ -1649,7 +1720,7 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
         : mode === 'plan'
         ? planPrompt
         : mode === 'clarify'
-        ? `你是“个人工作台”的任务澄清助手。请按 workbench-intake 规范执行。\n\n用户想创建的任务是：\n「${text}」\n\n当前时间：${new Date().toISOString()}\nAI 工作区根目录：${workspaceRootLabel}\n本次预分配任务 id：${reservedTaskId}${taskFolderPath !== '' ? `\n任务资料夹：${taskFolderPath}${taskFolderRelative !== '' ? `\n任务资料夹相对路径：./${taskFolderRelative}/` : ''}` : ''}\n\n请先澄清必要信息（一次一个主题，最多5轮）。除非用户明确要求为这条任务指定资料夹，否则不要再询问工作区路径。信息足够后调用 workbench_submit_task 提交结构化任务草稿，并且必须传入 task_id="${reservedTaskId}"${taskFolderPath !== '' ? `、workspace_path="${taskFolderPath}"` : ''}。如需在澄清阶段创建文件，请放在${taskFolderRelative !== '' ? `工作区内的 ./${taskFolderRelative}/` : '任务资料夹'}。不要执行任务本身。`
+        ? `你是“个人工作台”的任务澄清助手。请按 workbench-intake 规范执行。\n\n用户想创建的任务是：\n「${text.trim() === '' ? '（见附件图片）' : text}」${images.length > 0 ? `\n\n用户还附加了 ${images.length} 张图片作为任务内容，请结合图片理解需求；如果图片里包含关键任务信息、错误截图、界面状态或待办内容，请在最终任务 description 中用文字概括，便于入库后检索。` : ''}\n\n当前时间：${new Date().toISOString()}\nAI 工作区根目录：${workspaceRootLabel}\n本次预分配任务 id：${reservedTaskId}${taskFolderPath !== '' ? `\n任务资料夹：${taskFolderPath}${taskFolderRelative !== '' ? `\n任务资料夹相对路径：./${taskFolderRelative}/` : ''}` : ''}\n\n请先澄清必要信息（一次一个主题，最多5轮）。除非用户明确要求为这条任务指定资料夹，否则不要再询问工作区路径。信息足够后调用 workbench_submit_task 提交结构化任务草稿，并且必须传入 task_id="${reservedTaskId}"${taskFolderPath !== '' ? `、workspace_path="${taskFolderPath}"` : ''}。如需在澄清阶段创建文件，请放在${taskFolderRelative !== '' ? `工作区内的 ./${taskFolderRelative}/` : '任务资料夹'}。不要执行任务本身。`
         : mode === 'consult'
           ? `你是“个人工作台”的任务协助助手。请针对下面这个任务提供咨询、拆解或复盘建议（咨询模式不执行）。\n\n任务 id：${task?.id}\n任务标题：${task?.title}\n任务描述：${task?.description || '（无）'}\n类型：${task?.typeCode} 优先级：${task?.priorityCode} 状态：${task?.statusCode}\n截止：${task?.effectiveDueAt ?? task?.dueAt ?? '无'}${taskFolderPrompt}\n${memoryContext !== '' ? `\n任务共享记忆（同一任务/子树）：\n${memoryContext}` : ''}\n\n请先理解任务，再给出建议；如果信息不足，可以一次问一个问题。\n\n重要：如果用户要求把结论/补充信息保存回任务，请调用 workbench_update_task(task_id="${task?.id ?? ''}", description="...") 更新原任务；绝对不要调用 workbench_submit_task 新建任务。`
           : mode === 'breakdown'
@@ -1664,8 +1735,13 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
       }
       if (mode === 'clarify') setShowQuick(false)
       const finalPrompt = customPrompt.trim() === '' ? prompt : `${prompt}\n\n用户补充要求：\n${customPrompt.trim()}`
-      const result = await binding.session.prompt([{ type: 'text', text: finalPrompt }], 'queue')
+      const imageParts = mode === 'clarify' && images.length > 0 ? await Promise.all(images.map(quickImageToPromptPart)) : []
+      const result = await binding.session.prompt([...imageParts, { type: 'text', text: finalPrompt }], 'queue')
       if (result.ok === false) throw new Error(result.error !== undefined ? String(result.error) : '发送失败')
+      if (mode === 'clarify') {
+        setQuickText('')
+        clearQuickImages()
+      }
       if (mode === 'plan') {
         await api('/api/workbench/ai-sessions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ scopeCode: 'daily_plan', anchor: planAnchor, sessionId: id, workspace: workspaceId }) })
       }
@@ -2112,11 +2188,54 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
           {showQuick && (
             <div className="wb-form-panel">
               <h4><Icon name="sparkles" />快速录入 <span style={{ fontSize: 12, color: 'var(--dsw-alias-label-secondary)' }}>（将跳转官方会话区进行需求澄清）</span></h4>
-              <div className="wb-quick-composer">
-                <textarea rows={4} className="wb-quick-textarea" value={quickText} onChange={(e) => setQuickText(e.target.value)} placeholder="一句话描述任务，例如：周五10:30接待重要客户" />
+              <div
+                className={`wb-quick-composer ${quickImages.length > 0 ? 'has-images' : ''}`}
+                onDragOver={(e) => {
+                  if (Array.from(e.dataTransfer.types).includes('Files')) e.preventDefault()
+                }}
+                onDrop={(e) => {
+                  const files = Array.from(e.dataTransfer.files).filter(isQuickImageFile)
+                  if (files.length === 0) return
+                  e.preventDefault()
+                  addQuickImages(files)
+                }}
+              >
+                <textarea
+                  rows={4}
+                  className="wb-quick-textarea"
+                  value={quickText}
+                  onChange={(e) => setQuickText(e.target.value)}
+                  onPaste={(e) => {
+                    const files = Array.from(e.clipboardData.files).filter(isQuickImageFile)
+                    if (files.length > 0) addQuickImages(files)
+                  }}
+                  placeholder="一句话描述任务，例如：周五10:30接待重要客户；也可以粘贴或添加图片"
+                />
+                {quickImages.length > 0 && (
+                  <div className="wb-quick-image-rail" aria-label="快速录入图片">
+                    {quickImages.map((image) => (
+                      <div className="wb-quick-image-item" key={image.id} title={image.file.name || '图片'}>
+                        <img src={image.previewUrl} alt={image.file.name || '图片'} />
+                        <button type="button" className="wb-quick-image-remove" onClick={() => removeQuickImage(image.id)} aria-label="移除图片">×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <input
+                  ref={quickImageInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  multiple
+                  hidden
+                  onChange={(e) => {
+                    if (e.currentTarget.files !== null) addQuickImages(e.currentTarget.files)
+                    e.currentTarget.value = ''
+                  }}
+                />
                 <div className="wb-quick-actions">
                   <QuickModelPicker runtime={runtime} value={quickModelSelection} onChange={setQuickModelSelection} disabled={busy} onError={setError} alignRight />
-                  <button className="wb-send-button" disabled={busy || quickText.trim() === ''} onClick={() => void startAISession('clarify', null, quickText)} title="创建澄清会话" aria-label="创建澄清会话"><Icon name="send" size={18} /></button>
+                  <button type="button" className="wb-quick-upload-button" disabled={busy} onClick={() => quickImageInputRef.current?.click()} title="添加图片" aria-label="添加图片"><Icon name="image" size={17} /></button>
+                  <button className="wb-send-button" disabled={busy || (quickText.trim() === '' && quickImages.length === 0)} onClick={() => void startAISession('clarify', null, quickText, [], undefined, quickImages)} title="创建澄清会话" aria-label="创建澄清会话"><Icon name="send" size={18} /></button>
                 </div>
               </div>
             </div>
