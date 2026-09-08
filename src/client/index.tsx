@@ -218,12 +218,8 @@ html[${PENDING_ATTR}] [${ENTRY_ATTR}]::after { content:''; position:absolute; to
 .wb-quick-actions { position:absolute; right:10px; bottom:10px; display:flex; align-items:center; justify-content:flex-end; gap:7px; max-width:none; overflow:visible; }
 .wb-quick-actions .wb-btn { height:32px; overflow:visible; border-radius:999px; padding:0 10px; font-size:12.5px; white-space:nowrap; background:color-mix(in srgb, var(--dsw-alias-bg-layer-2,#222) 84%, transparent); }
 .wb-quick-actions .wb-model-trigger-label { white-space:nowrap; line-height:1.2; }
-.wb-quick-actions .wb-model-trigger { border-color:transparent; background:transparent; color:var(--dsw-alias-label-primary); font-weight:650; padding:0 4px; }
+.wb-quick-actions .wb-model-trigger { border-color:transparent; background:transparent; color:var(--dsw-alias-label-primary); font-weight:400; padding:0 4px; }
 .wb-quick-actions .wb-model-trigger:hover { background:transparent; color:var(--dsw-alias-label-primary); }
-.wb-model-trigger-effort { color:var(--dsw-alias-label-secondary); font-weight:650; margin-left:4px; }
-.wb-quick-upload-button { width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center; border:1px solid color-mix(in srgb, var(--dsw-alias-state-business-primary,#4f8ef7) 38%, transparent); border-radius:50%; color:var(--dsw-alias-label-primary); background:color-mix(in srgb, var(--dsw-alias-state-business-primary,#4f8ef7) 16%, transparent); cursor:pointer; padding:0; flex:none; }
-.wb-quick-upload-button:hover:not(:disabled) { color:var(--dsw-alias-label-primary); background:color-mix(in srgb, var(--dsw-alias-state-business-primary,#4f8ef7) 24%, transparent); border-color:color-mix(in srgb, var(--dsw-alias-state-business-primary,#4f8ef7) 52%, transparent); }
-.wb-quick-upload-button:disabled { opacity:.45; cursor:default; }
 .wb-send-button { width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center; border:none; border-radius:50%; background:var(--dsw-alias-label-primary,#fff); color:var(--dsw-alias-bg-base,#111); cursor:pointer; padding:0; flex:none; transition:transform .12s ease, box-shadow .12s ease, opacity .12s ease; }
 .wb-send-button svg { width:18px; height:18px; stroke-width:2.1; }
 .wb-send-button:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 6px 16px rgba(0,0,0,.22); }
@@ -873,7 +869,7 @@ function QuickModelPicker({ runtime, value, onChange, disabled, onError, alignRi
   return (
     <div style={{ position: 'relative' }}>
       <button type="button" className="wb-btn wb-model-trigger" disabled={disabled === true} onClick={openPicker} title={selectedLabel}>
-        <span className="wb-model-trigger-label">{selectedLabelParts.model}{selectedLabelParts.effort !== '' && <span className="wb-model-trigger-effort">{selectedLabelParts.effort}</span>}</span><span style={{ flex: 'none' }}>{open ? '⌃' : '›'}</span>
+        <span className="wb-model-trigger-label">{selectedLabelParts.model}</span><span style={{ flex: 'none' }}>{open ? '⌃' : '›'}</span>
       </button>
       {open && (
         <>
@@ -1266,7 +1262,6 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
   const [quickText, setQuickText] = useState('')
   const [quickImages, setQuickImages] = useState<QuickImageDraft[]>([])
   const [quickModelSelection, setQuickModelSelectionState] = useState<QuickModelSelection | null>(() => readQuickModelSelection())
-  const quickImageInputRef = useRef<HTMLInputElement | null>(null)
   const quickImagesRef = useRef<QuickImageDraft[]>([])
   const [pendingDraft, setPendingDraft] = useState<DraftView | null>(null)
   const [reminders, setReminders] = useState<Array<{ reminderId: string; taskId: string; title: string; dueAt: string; methodCode: string }>>([])
@@ -2209,7 +2204,7 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
                     const files = Array.from(e.clipboardData.files).filter(isQuickImageFile)
                     if (files.length > 0) addQuickImages(files)
                   }}
-                  placeholder="一句话描述任务，例如：周五10:30接待重要客户；也可以粘贴或添加图片"
+                  placeholder="一句话描述任务，例如：周五10:30接待重要客户；也可以粘贴或拖入图片"
                 />
                 {quickImages.length > 0 && (
                   <div className="wb-quick-image-rail" aria-label="快速录入图片">
@@ -2221,20 +2216,8 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
                     ))}
                   </div>
                 )}
-                <input
-                  ref={quickImageInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/gif"
-                  multiple
-                  hidden
-                  onChange={(e) => {
-                    if (e.currentTarget.files !== null) addQuickImages(e.currentTarget.files)
-                    e.currentTarget.value = ''
-                  }}
-                />
                 <div className="wb-quick-actions">
                   <QuickModelPicker runtime={runtime} value={quickModelSelection} onChange={setQuickModelSelection} disabled={busy} onError={setError} alignRight />
-                  <button type="button" className="wb-quick-upload-button" disabled={busy} onClick={() => quickImageInputRef.current?.click()} title="添加图片" aria-label="添加图片"><Icon name="image" size={17} /></button>
                   <button className="wb-send-button" disabled={busy || (quickText.trim() === '' && quickImages.length === 0)} onClick={() => void startAISession('clarify', null, quickText, [], undefined, quickImages)} title="创建澄清会话" aria-label="创建澄清会话"><Icon name="send" size={18} /></button>
                 </div>
               </div>
