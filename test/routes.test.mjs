@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { openWorkbenchDb } from '../lib/db/database.js'
-import { defaultTasksWorkspace, legacyAiWorkbenchTasksWorkspace, legacyDefaultTasksWorkspace } from '../lib/workbenchPaths.js'
+import { defaultTasksWorkspace } from '../lib/workbenchPaths.js'
 import { seedDictionaries } from '../lib/db/seed.js'
 import { makeDictionaryRoute } from '../lib/api/dictionaryRoute.js'
 import { makeLocalDirRoute } from '../lib/api/localDirRoute.js'
@@ -94,14 +94,6 @@ test('settings uses default AI workspace until user overrides it', async () => {
     const clear = await request('POST', '/api/workbench/settings', { defaultWorkspace: '' })
     assert.equal(clear.status, 200)
     assert.equal(clear.body.settings.defaultWorkspace, '')
-
-    const legacy = await request('POST', '/api/workbench/settings', { defaultWorkspace: legacyDefaultTasksWorkspace() })
-    assert.equal(legacy.status, 200)
-    assert.equal(legacy.body.settings.defaultWorkspace, defaultTasksWorkspace())
-
-    const legacyAiWorkbench = await request('POST', '/api/workbench/settings', { defaultWorkspace: legacyAiWorkbenchTasksWorkspace() })
-    assert.equal(legacyAiWorkbench.status, 200)
-    assert.equal(legacyAiWorkbench.body.settings.defaultWorkspace, defaultTasksWorkspace())
 
     const custom = await request('POST', '/api/workbench/settings', { defaultWorkspace: '  E:\\AI Tasks  ' })
     assert.equal(custom.status, 200)

@@ -1,16 +1,16 @@
 /**
- * Default local storage paths for dsh-personal-workbench.
+ * Default local storage paths for dsh-workbench.
  *
  * Runtime data lives under the user's Documents folder:
- *   Documents/dsh-personal-workbench/workbench.db
+ *   Documents/dsh-workbench/workbench.db
  * Task files live in:
- *   Documents/dsh-personal-workbench/tasks/<taskId>
+ *   Documents/dsh-workbench/tasks/<taskId>
  */
 import { spawnSync } from 'node:child_process'
 import { homedir, platform } from 'node:os'
 import { join } from 'node:path'
 
-const WORKBENCH_FOLDER = 'dsh-personal-workbench'
+const WORKBENCH_FOLDER = 'dsh-workbench'
 const TASKS_FOLDER = 'tasks'
 
 function expandWindowsEnv(input: string): string {
@@ -46,12 +46,4 @@ export function defaultDbPath(): string {
 
 export function defaultTasksWorkspace(): string {
   return join(defaultWorkbenchDataDir(), TASKS_FOLDER)
-}
-
-export function legacyDefaultTasksWorkspace(): string {
-  return join(defaultDocumentsDir(), 'aitasks')
-}
-
-export function legacyAiWorkbenchTasksWorkspace(): string {
-  return join(defaultDocumentsDir(), 'ai-workbench', TASKS_FOLDER)
 }

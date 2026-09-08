@@ -1,6 +1,6 @@
 /**
  * 打开/迁移工作台 SQLite 数据库。
- * 运行态数据库默认在 Documents/dsh-personal-workbench/workbench.db。
+ * 运行态数据库默认在 Documents/dsh-workbench/workbench.db。
  */
 import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -9,7 +9,7 @@ import { MIGRATIONS, SCHEMA_VERSION } from './schema.js'
 import { defaultDbPath } from '../workbenchPaths.js'
 
 export interface WorkbenchDbConfig {
-  /** 数据目录；缺省 Documents/dsh-personal-workbench */
+  /** 数据目录；缺省 Documents/dsh-workbench */
   dataDir?: string
   /** 数据库文件绝对路径；优先于 dataDir */
   dbPath?: string

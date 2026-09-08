@@ -1,5 +1,5 @@
 /**
- * dsh-personal-workbench — host half.
+ * dsh-workbench — host half.
  * V1/V1.5 能力已闭环；V2 起提供每日 AI 智能排序（daily_plans）。
  */
 import type { Context } from '@deepseek-ai/cordis'
@@ -14,12 +14,12 @@ import { openWorkbenchDb, type WorkbenchDbConfig } from './db/database.js'
 import { seedDictionaries } from './db/seed.js'
 import { proposeDailyPlanTool, proposeIdeaClustersTool, proposeSubtasksTool, requestCompletionTool, saveTaskMemoryTool, submitIdeaTasksTool, submitKnowledgeTool, submitReportTool, submitReviewTool, submitTaskTool, updateTaskTool } from './tools.js'
 
-export const name = 'dsh-personal-workbench'
+export const name = 'dsh-workbench'
 
 export const inject = ['webServer', 'systemPrompt', 'tools']
 
 const WORKBENCH_GUIDANCE = [
-  '本机已安装 dsh-personal-workbench 插件（个人工作台）：侧边栏「工作台」入口；',
+  '本机已安装 dsh-workbench 插件（个人工作台）：侧边栏「工作台」入口；',
   'V1 能力：日历 + 任务列表、自然语言快速录入与 AI 澄清、子任务拆解（AI 提案 + 用户确认）、任务关联多个 Harness 会话。',
   'V1.5 已提供任务“执行”：任意节点（含父任务）均可执行，执行会话完成后应调用 workbench_request_completion 提交验收申请，由用户验收后完成；父任务验收通过时未完成子任务会级联完成。AI 不得直接把任务标记为完成/取消。',
   '任务共享记忆：执行/拆解/咨询过程中有关键上下文、阶段性结论或决策时，请调用 workbench_save_task_memory 保存到任务共享记忆；同一任务/子树下的后续会话会自动加载这些记忆。',
@@ -49,7 +49,7 @@ export function apply(ctx: Context, config: Config = {}): void {
       const disposers = routes.map((route) => ctx.webServer.register(route))
       return () => { for (const dispose of disposers) dispose() }
     },
-    'dsh-personal-workbench: routes',
+    'dsh-workbench: routes',
   )
 
   ctx.effect(
@@ -57,7 +57,7 @@ export function apply(ctx: Context, config: Config = {}): void {
       const disposers = [submitTaskTool(db), proposeSubtasksTool(db), proposeDailyPlanTool(db), submitReportTool(db), submitKnowledgeTool(db), proposeIdeaClustersTool(db), submitIdeaTasksTool(db), updateTaskTool(db), requestCompletionTool(db), submitReviewTool(db), saveTaskMemoryTool(db)].map((tool) => ctx.tools.register(tool))
       return () => { for (const dispose of disposers) dispose() }
     },
-    'dsh-personal-workbench: tools',
+    'dsh-workbench: tools',
   )
 
   ctx.effect(() => {
@@ -67,7 +67,7 @@ export function apply(ctx: Context, config: Config = {}): void {
       order: SECTION_ORDER,
       text: WORKBENCH_GUIDANCE,
     })
-  }, 'dsh-personal-workbench: prompt')
+  }, 'dsh-workbench: prompt')
 
-  ctx.effect(() => () => { db.close() }, 'dsh-personal-workbench: db')
+  ctx.effect(() => () => { db.close() }, 'dsh-workbench: db')
 }
