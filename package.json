@@ -31,7 +31,13 @@
       "patch": "./cordis.patch.yml"
     },
     "client": {
-      "inject": [],
+      "inject": [
+        "sessions",
+        "workspaces",
+        "connection",
+        "uiWorkspace",
+        "modelDirectories"
+      ],
       "platform": "web"
     }
   },

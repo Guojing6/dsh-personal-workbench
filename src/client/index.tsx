@@ -1731,7 +1731,16 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
       if (mode === 'clarify') setShowQuick(false)
       const finalPrompt = customPrompt.trim() === '' ? prompt : `${prompt}\n\n用户补充要求：\n${customPrompt.trim()}`
       const imageParts = mode === 'clarify' && images.length > 0 ? await Promise.all(images.map(quickImageToPromptPart)) : []
-      const result = await binding.session.prompt([...imageParts, { type: 'text', text: finalPrompt }], 'queue')
+      let result: { ok?: boolean; error?: unknown }
+      try {
+        result = await binding.session.prompt([...imageParts, { type: 'text', text: finalPrompt }], 'queue')
+      } catch (promptError) {
+        const message = promptError instanceof Error ? promptError.message : String(promptError)
+        if (message.includes('without inject')) {
+          throw new Error('会话发送接口未注入，请重载或重新安装 ai-workbench 插件后再试')
+        }
+        throw promptError
+      }
       if (result.ok === false) throw new Error(result.error !== undefined ? String(result.error) : '发送失败')
       if (mode === 'clarify') {
         setQuickText('')
