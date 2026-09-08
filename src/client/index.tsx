@@ -2037,7 +2037,7 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
           <button className={`wb-seg ${view === 'ideas' ? 'on' : ''}`} onClick={() => setView('ideas')}><Icon name="idea" />点子</button>
         </div>
         <div style={{ flex: 1 }} />
-        <button className="wb-btn primary" onClick={() => setShowQuick((v) => !v)} disabled={busy}><Icon name="sparkles" /><span className="wb-label">快速录入</span></button>
+        <button className={`wb-btn ${showQuick ? 'primary' : ''}`} onClick={() => setShowQuick((v) => !v)} disabled={busy}><Icon name="sparkles" /><span className="wb-label">快速录入</span></button>
         <button className="wb-btn" onClick={() => setShowForm((v) => !v)}><Icon name="plus" /><span className="wb-label">新建</span></button>
         <button className="wb-btn" onClick={() => setShowSettings((v) => !v)}><Icon name="settings" /><span className="wb-label">设置</span></button>
         <button className="wb-btn" onClick={collapseAll}><Icon name="list" /><span className="wb-label">收起全部</span></button>
@@ -2187,7 +2187,7 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
 
           {showQuick && (
             <div className="wb-form-panel">
-              <h4><Icon name="sparkles" />快速录入 <span style={{ fontSize: 12, color: 'var(--dsw-alias-label-secondary)' }}>（将跳转官方会话区进行需求澄清）</span></h4>
+              <h4><Icon name="sparkles" />快速录入</h4>
               <div
                 className={`wb-quick-composer ${quickImages.length > 0 ? 'has-images' : ''}`}
                 onDragOver={(e) => {
@@ -2288,7 +2288,7 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
                     <div style={{ fontWeight: 600, marginBottom: 4 }}>今天没有需要关注的任务</div>
                     <div style={{ fontSize: 12, opacity: .8, marginBottom: 12 }}>可以快速录入一个新任务，或新建一个待办</div>
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
-                      <button className="wb-btn primary" onClick={() => setShowQuick((v) => !v)}>快速录入</button>
+                      <button className={`wb-btn ${showQuick ? 'primary' : ''}`} onClick={() => setShowQuick((v) => !v)}>快速录入</button>
                       <button className="wb-btn" onClick={() => setShowForm((v) => !v)}>新建任务</button>
                     </div>
                   </div>
