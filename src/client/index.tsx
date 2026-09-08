@@ -209,12 +209,13 @@ html[${PENDING_ATTR}] [${ENTRY_ATTR}]::after { content:''; position:absolute; to
 .wb-quick-composer { position:relative; }
 .wb-quick-textarea { width:100%; min-height:118px; background:var(--dsw-alias-bg-base,#17171a); border:1px solid var(--dsw-alias-border-l1,rgba(255,255,255,.18)); color:inherit; border-radius:14px; padding:12px 12px 56px; box-sizing:border-box; font:inherit; font-size:14px; resize:vertical; }
 .wb-quick-textarea:focus { border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4f8ef7) 65%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-business-primary, #4f8ef7) 14%, transparent); outline:none; }
-.wb-quick-actions { position:absolute; right:10px; bottom:10px; display:flex; align-items:center; justify-content:flex-end; gap:8px; max-width:calc(100% - 20px); }
-.wb-quick-actions .wb-btn { max-width:min(260px, calc(100vw - 140px)); overflow:hidden; }
-.wb-send-button { width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center; border:none; border-radius:50%; background:var(--dsw-alias-label-primary,#fff); color:var(--dsw-alias-bg-base,#111); cursor:pointer; padding:0; flex:none; }
-.wb-send-button:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 6px 18px rgba(0,0,0,.22); }
+.wb-quick-actions { position:absolute; right:10px; bottom:10px; display:flex; align-items:center; justify-content:flex-end; gap:7px; max-width:calc(100% - 20px); }
+.wb-quick-actions .wb-btn { height:32px; max-width:min(180px, calc(100vw - 132px)); overflow:hidden; border-radius:999px; padding:0 10px; font-size:12.5px; background:color-mix(in srgb, var(--dsw-alias-bg-layer-2,#222) 84%, transparent); }
+.wb-send-button { width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center; border:none; border-radius:50%; background:var(--dsw-alias-label-primary,#fff); color:var(--dsw-alias-bg-base,#111); cursor:pointer; padding:0; flex:none; transition:transform .12s ease, box-shadow .12s ease, opacity .12s ease; }
+.wb-send-button svg { width:18px; height:18px; stroke-width:2.1; }
+.wb-send-button:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 6px 16px rgba(0,0,0,.22); }
 .wb-send-button:disabled { opacity:.45; cursor:default; }
-.wb-model-option { width:100%; display:flex; align-items:center; gap:8px; border:1px solid transparent; background:transparent; color:inherit; border-radius:8px; padding:8px 9px; cursor:pointer; font:inherit; font-size:13px; text-align:left; }
+.wb-model-option { width:100%; display:flex; align-items:center; gap:7px; border:1px solid transparent; background:transparent; color:inherit; border-radius:7px; padding:6px 7px; cursor:pointer; font:inherit; font-size:12px; text-align:left; }
 .wb-model-option:hover { background: color-mix(in srgb, var(--dsw-alias-label-primary,#fff) 7%, transparent); }
 .wb-model-option.selected { background: color-mix(in srgb, var(--dsw-alias-state-business-primary,#4f8ef7) 14%, transparent); border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary,#4f8ef7) 34%, transparent); }
 .wb-session-picker-list { display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
@@ -749,14 +750,13 @@ function MultiSelectDropdown({ label, options, selected, open, onToggle, onClose
   )
 }
 
-function QuickModelPicker({ runtime, value, onChange, disabled, onError, alignRight = false, openUp = false }: {
+function QuickModelPicker({ runtime, value, onChange, disabled, onError, alignRight = false }: {
   runtime: WorkbenchRuntime
   value: QuickModelSelection | null
   onChange: (selection: QuickModelSelection | null) => void
   disabled?: boolean
   onError: (message: string) => void
   alignRight?: boolean
-  openUp?: boolean
 }): JSX.Element {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -830,14 +830,14 @@ function QuickModelPicker({ runtime, value, onChange, disabled, onError, alignRi
       {open && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 20 }} onClick={() => setOpen(false)} />
-          <div style={{ position: 'absolute', left: alignRight ? undefined : 0, right: alignRight ? 0 : undefined, top: openUp ? undefined : 'calc(100% + 4px)', bottom: openUp ? 'calc(100% + 4px)' : undefined, zIndex: 30, width: 'min(320px, 86vw)', maxHeight: 360, overflowY: 'auto', background: 'var(--dsw-alias-bg-layer-2, #1c1c1f)', border: '1px solid var(--dsw-alias-border-l1, rgba(255,255,255,.22))', borderRadius: 10, padding: 6, boxShadow: '0 12px 32px rgba(0,0,0,.45)' }}>
+          <div style={{ position: 'absolute', left: alignRight ? undefined : 0, right: alignRight ? 0 : undefined, top: 'calc(100% + 4px)', zIndex: 30, width: 'min(248px, 78vw)', maxHeight: 238, overflowY: 'auto', background: 'var(--dsw-alias-bg-layer-2, #1c1c1f)', border: '1px solid var(--dsw-alias-border-l1, rgba(255,255,255,.22))', borderRadius: 9, padding: 4, boxShadow: '0 10px 24px rgba(0,0,0,.38)' }}>
             {loading || state.status === 'loading'
-              ? <div style={{ padding: '8px 10px', color: 'var(--dsw-alias-label-secondary)', fontSize: 12 }}>正在读取模型列表…</div>
+              ? <div style={{ padding: '6px 8px', color: 'var(--dsw-alias-label-secondary)', fontSize: 11.5 }}>正在读取模型列表…</div>
               : null}
-            {state.error !== null && <div style={{ padding: '8px 10px', color: '#E74C3C', fontSize: 12 }}>{state.error}</div>}
+            {state.error !== null && <div style={{ padding: '6px 8px', color: '#E74C3C', fontSize: 11.5 }}>{state.error}</div>}
             {state.groups.map((group) => (
-              <div key={group.id} style={{ borderTop: '1px solid var(--dsw-alias-border-l1, rgba(255,255,255,.12))', marginTop: 6, paddingTop: 6 }}>
-                <div style={{ padding: '4px 8px', color: 'var(--dsw-alias-label-secondary)', fontSize: 11, fontWeight: 700 }}>{group.name}</div>
+              <div key={group.id} style={{ borderTop: '1px solid var(--dsw-alias-border-l1, rgba(255,255,255,.12))', marginTop: 4, paddingTop: 4 }}>
+                <div style={{ padding: '3px 7px', color: 'var(--dsw-alias-label-secondary)', fontSize: 10.5, fontWeight: 700 }}>{group.name}</div>
                 {group.models.map((model) => {
                   const selected = value === null
                     ? state.current?.provider === group.id && state.current.model === model.id
@@ -847,7 +847,7 @@ function QuickModelPicker({ runtime, value, onChange, disabled, onError, alignRi
                     <button key={model.id} type="button" className={`wb-model-option ${selected ? 'selected' : ''}`} onClick={() => chooseModel(group, model)}>
                       <span style={{ minWidth: 0, flex: 1 }}>
                         <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{model.name}</span>
-                        {effort !== undefined && <span style={{ display: 'block', color: 'var(--dsw-alias-label-secondary)', fontSize: 11 }}>{effort.name}</span>}
+                        {effort !== undefined && <span style={{ display: 'block', color: 'var(--dsw-alias-label-secondary)', fontSize: 10.5 }}>{effort.name}</span>}
                       </span>
                       {selected && <Icon name="check" size={14} />}
                     </button>
@@ -856,10 +856,10 @@ function QuickModelPicker({ runtime, value, onChange, disabled, onError, alignRi
               </div>
             ))}
             {state.groups.length === 0 && !loading && state.status !== 'loading' && state.error === null && (
-              <div style={{ padding: '8px 10px', color: 'var(--dsw-alias-label-secondary)', fontSize: 12 }}>暂无可用模型</div>
+              <div style={{ padding: '6px 8px', color: 'var(--dsw-alias-label-secondary)', fontSize: 11.5 }}>暂无可用模型</div>
             )}
             {state.failures.length > 0 && (
-              <div style={{ borderTop: '1px solid var(--dsw-alias-border-l1, rgba(255,255,255,.12))', marginTop: 6, padding: '6px 8px', color: 'var(--dsw-alias-label-secondary)', fontSize: 11 }}>
+              <div style={{ borderTop: '1px solid var(--dsw-alias-border-l1, rgba(255,255,255,.12))', marginTop: 4, padding: '5px 7px', color: 'var(--dsw-alias-label-secondary)', fontSize: 10.5 }}>
                 {state.failures.length} 个模型来源读取失败
               </div>
             )}
@@ -2103,8 +2103,8 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
               <div className="wb-quick-composer">
                 <textarea rows={4} className="wb-quick-textarea" value={quickText} onChange={(e) => setQuickText(e.target.value)} placeholder="一句话描述任务，例如：周五10:30接待重要客户" />
                 <div className="wb-quick-actions">
-                  <QuickModelPicker runtime={runtime} value={quickModelSelection} onChange={setQuickModelSelection} disabled={busy} onError={setError} alignRight openUp />
-                  <button className="wb-send-button" disabled={busy || quickText.trim() === ''} onClick={() => void startAISession('clarify', null, quickText)} title="创建澄清会话" aria-label="创建澄清会话"><Icon name="send" /></button>
+                  <QuickModelPicker runtime={runtime} value={quickModelSelection} onChange={setQuickModelSelection} disabled={busy} onError={setError} alignRight />
+                  <button className="wb-send-button" disabled={busy || quickText.trim() === ''} onClick={() => void startAISession('clarify', null, quickText)} title="创建澄清会话" aria-label="创建澄清会话"><Icon name="send" size={18} /></button>
                 </div>
               </div>
             </div>
