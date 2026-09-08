@@ -65,8 +65,8 @@ test('workspacePath: taskWorkspaceFolderName uses only task id for stable folder
 })
 
 test('workspacePath: isAutoTaskWorkspacePath detects task-id folders', () => {
-  assert.equal(isAutoTaskWorkspacePath('C:\\Users\\me\\Documents\\aitasks\\task_abc', 'task_abc'), true)
-  assert.equal(isAutoTaskWorkspacePath('/mnt/c/Users/me/Documents/aitasks/task_abc/', 'task_abc'), true)
+  assert.equal(isAutoTaskWorkspacePath('C:\\Users\\me\\Documents\\ai-workbench\\tasks\\task_abc', 'task_abc'), true)
+  assert.equal(isAutoTaskWorkspacePath('/mnt/c/Users/me/Documents/ai-workbench/tasks/task_abc/', 'task_abc'), true)
   assert.equal(isAutoTaskWorkspacePath('D:\\custom\\task_other', 'task_abc'), false)
   assert.equal(isAutoTaskWorkspacePath('D:\\custom\\handwritten', 'task_abc'), false)
 })

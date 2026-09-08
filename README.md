@@ -1,6 +1,6 @@
-# dsh-personal-workbench
+# ai-workbench
 
-[![npm version](https://img.shields.io/npm/v/@guojing6/dsh-personal-workbench)](https://www.npmjs.com/package/@guojing6/dsh-personal-workbench)
+[![npm version](https://img.shields.io/npm/v/@guojing6/ai-workbench)](https://www.npmjs.com/package/@guojing6/ai-workbench)
 
 A personal workbench plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) Web.
 Turn your DSH into a **calendar + task list + AI assistant workbench**.
@@ -13,18 +13,18 @@ Turn your DSH into a **calendar + task list + AI assistant workbench**.
 
 ## 这是什么
 
-`dsh-personal-workbench` 是一个 **DSH 个人工作台插件**：
+`ai-workbench` 是一个 **DSH 个人工作台插件**：
 
 - 📅 日历（周/月可切换）+ 任务列表（树状层级）
 - ✨ 自然语言快速录入，AI 澄清后自动生成任务
 - 🧠 每个任务可关联多个 AI 会话：澄清 / 咨询 / 拆解 / 执行 / 复盘
 - ✅ 任务执行采用“AI 申请完成 → 用户验收”闭环
-- 🗂️ 固定 AI 工作区根目录（默认当前用户 Documents/aitasks，可在设置中修改），每个任务在根目录下使用任务 ID 资料夹存放文件
+- 🗂️ 固定 AI 工作区根目录（默认当前用户 Documents/ai-workbench/tasks，可在设置中修改），每个任务在根目录下使用任务 ID 资料夹存放文件
 - 📝 Markdown 任务描述、复盘记录、变更历史
 - ⏰ 到期提醒（页内横幅）
 - 🗄️ 归档区、任务恢复
 
-数据完全存储在本地 `~/.dsh/workbench`，不上传任何服务器。
+数据完全存储在本机用户 Documents 下的 `ai-workbench` 目录，不上传任何服务器。
 
 ## 截图
 
@@ -64,7 +64,8 @@ Turn your DSH into a **calendar + task list + AI assistant workbench**.
 - 同一任务只保留一个复盘会话；重复复盘进入同一会话
 
 ### 数据与安全
-- SQLite（`~/.dsh/workbench/workbench.db`）+ 每日 JSON 备份规划
+- SQLite（`Documents/ai-workbench/workbench.db`）+ 每日 JSON 备份规划
+- AI 任务文件资料夹默认位于 `Documents/ai-workbench/tasks/<任务ID>`
 - 所有工作台 API 均挂载在 `/api/workbench/*` 且仅允许 loopback 访问
 - 不读取、不上传 DSH 之外的任何数据
 
@@ -80,25 +81,25 @@ Turn your DSH into a **calendar + task list + AI assistant workbench**.
 ### 从 npm 安装（推荐）
 
 ```sh
-dsh plugin --profile web add @guojing6/dsh-personal-workbench
+dsh plugin --profile web add @guojing6/ai-workbench
 ```
 
 或使用 npm 直接安装到项目：
 
 ```sh
-npm install @guojing6/dsh-personal-workbench
+npm install @guojing6/ai-workbench
 ```
 
 ### 从 GitHub 安装
 
 ```sh
-dsh plugin --profile web add git+https://github.com/Guojing6/dsh-personal-workbench.git
+dsh plugin --profile web add git+https://github.com/Guojing6/ai-workbench.git
 ```
 
 或安装 Release tarball：
 
 ```sh
-dsh plugin --profile web add file:/path/to/dsh-personal-workbench-<version>.tgz
+dsh plugin --profile web add file:/path/to/ai-workbench-<version>.tgz
 ```
 
 安装后重启 `dsh web`，浏览器硬刷新（Ctrl+Shift+R）。
@@ -106,8 +107,8 @@ dsh plugin --profile web add file:/path/to/dsh-personal-workbench-<version>.tgz
 ### 从源码开发
 
 ```sh
-git clone https://github.com/Guojing6/dsh-personal-workbench.git
-cd dsh-personal-workbench
+git clone https://github.com/Guojing6/ai-workbench.git
+cd ai-workbench
 pnpm install
 pnpm check      # 类型检查 + 构建
 pnpm test       # 最小回归测试（使用构建产物）
@@ -117,7 +118,7 @@ pnpm test       # 最小回归测试（使用构建产物）
 
 ```sh
 pnpm build
-dsh plugin --profile web add link:/path/to/dsh-personal-workbench
+dsh plugin --profile web add link:/path/to/ai-workbench
 ```
 
 > 开发模式修改代码后需要重新 `pnpm build` 并重启 `dsh web`。
@@ -167,23 +168,23 @@ dsh plugin --profile web add link:/path/to/dsh-personal-workbench
 
 ## What is this
 
-`dsh-personal-workbench` is a personal workbench plugin for DeepSeek Harness Web:
+`ai-workbench` is a personal workbench plugin for DeepSeek Harness Web:
 calendar + hierarchical task list, natural-language task intake with AI clarification,
 multiple AI sessions per task (clarify / consult / break down / execute / review),
 execution with user acceptance, AI prioritization for any date, daily/weekly reports,
 desktop notifications, per-task AI workspaces, reminders, archives, and Markdown reviews.
 
-All task data is stored locally under `~/.dsh/workbench`.
+All task data is stored locally under the user's `Documents/ai-workbench` folder.
 
 ## Install
 
 ```sh
 # From npm (recommended)
-dsh plugin --profile web add @guojing6/dsh-personal-workbench
+dsh plugin --profile web add @guojing6/ai-workbench
 
 # From source or release tarball
-dsh plugin --profile web add git+https://github.com/Guojing6/dsh-personal-workbench.git
-dsh plugin --profile web add file:/path/to/dsh-personal-workbench-<version>.tgz
+dsh plugin --profile web add git+https://github.com/Guojing6/ai-workbench.git
+dsh plugin --profile web add file:/path/to/ai-workbench-<version>.tgz
 ```
 
 Then restart `dsh web` and hard-refresh the browser.

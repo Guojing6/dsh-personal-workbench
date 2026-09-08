@@ -2,9 +2,10 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import http from 'node:http'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { homedir, tmpdir } from 'node:os'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { openWorkbenchDb } from '../lib/db/database.js'
+import { defaultTasksWorkspace, legacyDefaultTasksWorkspace } from '../lib/workbenchPaths.js'
 import { seedDictionaries } from '../lib/db/seed.js'
 import { makeDictionaryRoute } from '../lib/api/dictionaryRoute.js'
 import { makeLocalDirRoute } from '../lib/api/localDirRoute.js'
@@ -84,16 +85,19 @@ test('manual plan editing PUT saves added task instead of returning not found', 
 
 test('settings uses default AI workspace until user overrides it', async () => {
   await withServer(async ({ request }) => {
-    const expectedDefaultWorkspace = join(homedir(), 'Documents', 'aitasks')
     const initial = await request('GET', '/api/workbench/settings')
     assert.equal(initial.status, 200)
-    assert.equal(initial.body.settings.defaultWorkspace, expectedDefaultWorkspace)
+    assert.equal(initial.body.settings.defaultWorkspace, defaultTasksWorkspace())
     assert.equal(initial.body.settings.autoCreateTypeFolders, true)
     assert.equal(initial.body.settings.desktopNotify, true)
 
     const clear = await request('POST', '/api/workbench/settings', { defaultWorkspace: '' })
     assert.equal(clear.status, 200)
     assert.equal(clear.body.settings.defaultWorkspace, '')
+
+    const legacy = await request('POST', '/api/workbench/settings', { defaultWorkspace: legacyDefaultTasksWorkspace() })
+    assert.equal(legacy.status, 200)
+    assert.equal(legacy.body.settings.defaultWorkspace, defaultTasksWorkspace())
 
     const custom = await request('POST', '/api/workbench/settings', { defaultWorkspace: '  E:\\AI Tasks  ' })
     assert.equal(custom.status, 200)

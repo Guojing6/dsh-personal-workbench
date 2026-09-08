@@ -4,7 +4,6 @@
 import { mkdirSync } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import type { DatabaseSync } from 'node:sqlite'
@@ -16,6 +15,7 @@ import {
   listDictionaries, listDueReminders, listIdeas, listIdeaClusters, listIdeaClustersForIdea, listKnowledge, listReminders, listTaskEvents, listTaskMemories, listTaskReports, listTaskReviews,
   listTaskSessions, listTasks, localDateString, registerAiSession, repairParentCompletion, restoreTask, updateDailyPlan, updateIdea, updateKnowledge, updateTask, updateTaskWithCompletion, type ReportPeriodCode, type TaskInput,
 } from '../db/repo.js'
+import { defaultTasksWorkspace, legacyDefaultTasksWorkspace } from '../workbenchPaths.js'
 
 const TASKS_PREFIX = '/api/workbench/tasks'
 const DRAFTS_PREFIX = '/api/workbench/drafts'
@@ -26,10 +26,20 @@ const AI_SESSIONS_PREFIX = '/api/workbench/ai-sessions'
 const KNOWLEDGE_PREFIX = '/api/workbench/knowledge'
 const IDEAS_PREFIX = '/api/workbench/ideas'
 const IDEA_CLUSTERS_PREFIX = '/api/workbench/idea-clusters'
-const DEFAULT_AI_WORKSPACE_FOLDER = 'aitasks'
-
 function defaultAiWorkspace(): string {
-  return join(homedir(), 'Documents', DEFAULT_AI_WORKSPACE_FOLDER)
+  return defaultTasksWorkspace()
+}
+
+function normalizePathForCompare(input: string): string {
+  return input.trim().replace(/\\/g, '/').replace(/\/+$/g, '').toLowerCase()
+}
+
+function storedDefaultWorkspace(metaGet: (key: string) => string | undefined): string {
+  const stored = metaGet('ai_default_workspace')
+  if (stored === undefined) return defaultAiWorkspace()
+  const normalized = normalizePathForCompare(stored)
+  if (normalized === normalizePathForCompare(legacyDefaultTasksWorkspace())) return defaultAiWorkspace()
+  return stored
 }
 
 function isLoopbackRequest(req: IncomingMessage): boolean {
@@ -238,7 +248,7 @@ export function makeRoutes(db: DatabaseSync): WebRoute[] {
           return writeJson(res, 200, {
             ok: true,
             settings: {
-              defaultWorkspace: metaGet('ai_default_workspace') ?? defaultAiWorkspace(),
+              defaultWorkspace: storedDefaultWorkspace(metaGet),
               autoCreateTypeFolders: (metaGet('auto_create_type_folders') ?? '1') === '1',
               desktopNotify: (metaGet('desktop_notify') ?? '1') === '1',
             },
@@ -251,7 +261,7 @@ export function makeRoutes(db: DatabaseSync): WebRoute[] {
           if (body.autoCreateTypeFolders === true || body.autoCreateTypeFolders === false) metaSet('auto_create_type_folders', body.autoCreateTypeFolders ? '1' : '0')
           if (body.desktopNotify === true || body.desktopNotify === false) metaSet('desktop_notify', body.desktopNotify ? '1' : '0')
           return writeJson(res, 200, { ok: true, settings: {
-            defaultWorkspace: metaGet('ai_default_workspace') ?? defaultAiWorkspace(),
+            defaultWorkspace: storedDefaultWorkspace(metaGet),
             autoCreateTypeFolders: (metaGet('auto_create_type_folders') ?? '1') === '1',
             desktopNotify: (metaGet('desktop_notify') ?? '1') === '1',
           } })
@@ -902,7 +912,7 @@ export function makeRoutes(db: DatabaseSync): WebRoute[] {
         const versionRow = db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get() as { value: string } | undefined
         writeJson(res, 200, {
           ok: true,
-          name: '@guojing6/dsh-personal-workbench',
+          name: '@guojing6/ai-workbench',
           version: '1.8.0',
           db: {
             schemaVersion: versionRow?.value ?? 'unknown',

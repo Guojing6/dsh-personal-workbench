@@ -1,5 +1,5 @@
 /**
- * dsh-personal-workbench client v0.2 — 方案 A 左右分栏：
+ * ai-workbench client v0.2 — 方案 A 左右分栏：
  *  - 左侧导航区：今日 / 可导航日历(周/月) / 树状列表（默认折叠、记忆展开）
  *  - 右侧详情区：仅显示选中任务；未选中显示占位
  *  - AI 澄清/咨询/拆解统一跳官方会话区；工作台侧边栏显示待确认草稿红点
@@ -21,11 +21,11 @@ import {
 } from './taskFilterSort.js'
 import { isAutoTaskWorkspacePath, isWslStylePath, joinPath, normalizeWindowsPathToWsl, taskWorkspaceFolderName } from './workspacePath.js'
 
-const PANEL_NAME = 'personal-workbench'
-const ACTIVE_ATTR = 'data-dsh-personal-workbench-active'
-const PENDING_ATTR = 'data-dsh-personal-workbench-pending'
-const VIEW_ATTR = 'data-dsh-personal-workbench-view'
-const ENTRY_ATTR = 'data-dsh-personal-workbench-entry'
+const PANEL_NAME = 'ai-workbench'
+const ACTIVE_ATTR = 'data-ai-workbench-active'
+const PENDING_ATTR = 'data-ai-workbench-pending'
+const VIEW_ATTR = 'data-ai-workbench-view'
+const ENTRY_ATTR = 'data-ai-workbench-entry'
 const SIBLING_ATTRS = ['data-dsh-taskboard-active', 'data-dsh-ssh-active']
 const ACTIVATE_EVENT = 'dsh-panel-activate'
 
@@ -364,8 +364,8 @@ const api = async <T,>(path: string, init?: RequestInit): Promise<T> => {
   return body as T
 }
 
-const DEFAULT_AI_WORKSPACE_HINT = '自动：Documents\\aitasks'
-const QUICK_MODEL_STORAGE_KEY = 'dsh-personal-workbench.quickModelSelection'
+const DEFAULT_AI_WORKSPACE_HINT = '自动：Documents\\ai-workbench\\tasks'
+const QUICK_MODEL_STORAGE_KEY = 'ai-workbench.quickModelSelection'
 const EMPTY_MODEL_DIRECTORY_STATE: ModelDirectoryState = { current: null, groups: [], failures: [], status: 'idle', error: null }
 const createClientId = (): string => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
@@ -1338,7 +1338,7 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
             try {
               new Notification(`任务提醒：${reminder.title}`, {
                 body: `截止时间：${fmtTime(reminder.dueAt)}`,
-                tag: `dsh-personal-workbench:${reminder.reminderId}`,
+                tag: `ai-workbench:${reminder.reminderId}`,
               })
               void fireReminder(reminder.reminderId).catch(() => undefined)
             } catch { /* 部分浏览器限制通知构造，忽略降级为页内横幅 */ }
@@ -1816,10 +1816,10 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
   const [taskSortDir, setTaskSortDir] = useState<TaskSortDir>('asc')
   const [openFilter, setOpenFilter] = useState<'status' | 'priority' | 'type' | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(() => {
-    try { return new Set(JSON.parse(localStorage.getItem('dsh.personal-workbench.treeExpanded') ?? '[]') as string[]) } catch { return new Set() }
+    try { return new Set(JSON.parse(localStorage.getItem('dsh.ai-workbench.treeExpanded') ?? '[]') as string[]) } catch { return new Set() }
   })
   useEffect(() => {
-    try { localStorage.setItem('dsh.personal-workbench.treeExpanded', JSON.stringify([...expanded])) } catch { /* ignore */ }
+    try { localStorage.setItem('dsh.ai-workbench.treeExpanded', JSON.stringify([...expanded])) } catch { /* ignore */ }
   }, [expanded])
   const toggleExpanded = (id: string): void => setExpanded((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next })
   const toggleTodayExpanded = (id: string): void => setTodayExpanded((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next })
@@ -2046,7 +2046,7 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
                         })
                       }}>授权浏览器通知</button>}
                 {notifyPerm === 'granted' && <button className="wb-btn" onClick={() => {
-                  try { new Notification('dsh-personal-workbench 通知测试', { body: '如果你看到这条系统通知，说明桌面提醒已正常工作。' }) } catch { /* ignore */ }
+                  try { new Notification('ai-workbench 通知测试', { body: '如果你看到这条系统通知，说明桌面提醒已正常工作。' }) } catch { /* ignore */ }
                 }}>发送测试通知</button>}
                 <span style={{ fontSize: 12, color: 'var(--dsw-alias-label-secondary)' }}>DSH 页面保持打开（可最小化）即可收到</span>
               </div>
@@ -2880,9 +2880,9 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
 }
 
 function ensureStyle(): void {
-  if (document.querySelector('style[data-dsh-personal-workbench-style]') !== null) return
+  if (document.querySelector('style[data-ai-workbench-style]') !== null) return
   const style = document.createElement('style')
-  style.dataset.dshPersonalWorkbenchStyle = ''
+  style.dataset.aiWorkbenchStyle = ''
   style.textContent = CSS
   document.head.appendChild(style)
 }
@@ -2900,7 +2900,7 @@ function conversationColumn(): HTMLElement | undefined {
   return document.querySelector<HTMLElement>('[data-pane="conversation"], [class*="centerCol"]') ?? undefined
 }
 
-export const name = 'personal-workbench-client'
+export const name = 'ai-workbench-client'
 export const inject = ['sessions', 'workspaces', 'connection', 'uiWorkspace', 'modelDirectories']
 
 export function apply(ctx: unknown): () => void {
