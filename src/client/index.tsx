@@ -5,7 +5,7 @@
  *  - AI 澄清/咨询/拆解统一跳官方会话区；工作台侧边栏显示待确认草稿红点
  */
 import { createRoot, type Root } from 'react-dom/client'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import {
   buildTaskTree,
   countTaskTreeBy,
@@ -206,6 +206,9 @@ html[${PENDING_ATTR}] [${ENTRY_ATTR}]::after { content:''; position:absolute; to
 .wb-session-search { flex: 1; min-width: 0; background: var(--dsw-alias-bg-base,#17171a); border: 1px solid var(--dsw-alias-border-l1, rgba(255,255,255,.16)); color: inherit; border-radius: 8px; padding: 7px 10px; font: inherit; font-size: 13px; }
 .wb-session-search:focus { border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4f8ef7) 65%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-business-primary, #4f8ef7) 14%, transparent); outline: none; }
 .wb-session-role-select { background: var(--dsw-alias-bg-base,#17171a); border: 1px solid var(--dsw-alias-border-l1, rgba(255,255,255,.16)); color: inherit; border-radius: 8px; padding: 7px 10px; font: inherit; font-size: 13px; }
+.wb-model-option { width:100%; display:flex; align-items:center; gap:8px; border:1px solid transparent; background:transparent; color:inherit; border-radius:8px; padding:8px 9px; cursor:pointer; font:inherit; font-size:13px; text-align:left; }
+.wb-model-option:hover { background: color-mix(in srgb, var(--dsw-alias-label-primary,#fff) 7%, transparent); }
+.wb-model-option.selected { background: color-mix(in srgb, var(--dsw-alias-state-business-primary,#4f8ef7) 14%, transparent); border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary,#4f8ef7) 34%, transparent); }
 .wb-session-picker-list { display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .wb-session-option { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: 1px solid transparent; background: color-mix(in srgb, var(--dsw-alias-label-primary, #888) 4%, transparent); border-radius: 8px; text-align: left; cursor: pointer; font: inherit; font-size: 13px; color: var(--dsw-alias-label-primary); transition: border-color .12s ease, background .12s ease; }
 .wb-session-option:hover:not(:disabled) { border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4f8ef7) 45%, transparent); background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4f8ef7) 9%, transparent); }
@@ -278,6 +281,35 @@ interface SessionDriver {
   prompt(content: Array<{ type: 'text'; text: string }>, mode: 'queue'): Promise<{ ok?: boolean; error?: unknown }>
   rename(title: string): Promise<unknown>
 }
+interface ModelSelection {
+  provider: string
+  model: string
+  reasoningEffort?: string
+}
+interface QuickModelSelection extends ModelSelection {
+  label: string
+  effortLabel?: string
+}
+interface ModelProviderGroup {
+  id: string
+  name: string
+  models: ReadonlyArray<{ id: string; name: string; reasoning?: { defaultEffort?: string; efforts: ReadonlyArray<{ id: string; name: string }> } }>
+}
+interface ModelDirectoryState {
+  current: ModelSelection | null
+  groups: readonly ModelProviderGroup[]
+  failures: ReadonlyArray<{ id: string; name: string; message: string }>
+  status: 'idle' | 'loading' | 'ready' | 'selecting' | 'error'
+  error: string | null
+}
+interface ModelDirectoryRuntime {
+  store: {
+    getSnapshot(): ModelDirectoryState
+    subscribe(listener: () => void): () => void
+  }
+  load(): Promise<ModelDirectoryState>
+  select(selection: ModelSelection): Promise<void>
+}
 interface DshSessionSummary {
   id: string
   title?: string
@@ -306,6 +338,9 @@ interface WorkbenchRuntime {
   uiWorkspace: {
     connectWorkspace(workspaceId: string): Promise<string>
   }
+  modelDirectories?: {
+    directoryFor(sessionId: string): ModelDirectoryRuntime
+  }
   connection?: {
     generation: {
       getSnapshot(): { host: { home: string } } | undefined
@@ -321,9 +356,35 @@ const api = async <T,>(path: string, init?: RequestInit): Promise<T> => {
 }
 
 const DEFAULT_AI_WORKSPACE_HINT = '自动：Documents\\aitasks'
+const QUICK_MODEL_STORAGE_KEY = 'dsh-personal-workbench.quickModelSelection'
+const EMPTY_MODEL_DIRECTORY_STATE: ModelDirectoryState = { current: null, groups: [], failures: [], status: 'idle', error: null }
 const createClientId = (): string => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
   return `task_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
+}
+const readQuickModelSelection = (): QuickModelSelection | null => {
+  try {
+    const raw = localStorage.getItem(QUICK_MODEL_STORAGE_KEY)
+    if (raw === null) return null
+    const value = JSON.parse(raw) as Partial<QuickModelSelection>
+    if (typeof value.provider !== 'string' || value.provider === '') return null
+    if (typeof value.model !== 'string' || value.model === '') return null
+    return {
+      provider: value.provider,
+      model: value.model,
+      label: typeof value.label === 'string' && value.label !== '' ? value.label : `${value.provider}/${value.model}`,
+      ...(typeof value.reasoningEffort === 'string' && value.reasoningEffort !== '' ? { reasoningEffort: value.reasoningEffort } : {}),
+      ...(typeof value.effortLabel === 'string' && value.effortLabel !== '' ? { effortLabel: value.effortLabel } : {}),
+    }
+  } catch {
+    return null
+  }
+}
+const writeQuickModelSelection = (selection: QuickModelSelection | null): void => {
+  try {
+    if (selection === null) localStorage.removeItem(QUICK_MODEL_STORAGE_KEY)
+    else localStorage.setItem(QUICK_MODEL_STORAGE_KEY, JSON.stringify(selection))
+  } catch { /* ignore localStorage failures */ }
 }
 const clientFileLinkToPath = (link: string): string => {
   const trimmed = link.trim()
@@ -440,6 +501,7 @@ function Icon({ name, size = 16 }: { name: string; size?: number }): JSX.Element
     case 'folder': return <svg {...common}><path d="M2.5 4h4l1.5 2h5.5v7h-11z" /></svg>
     case 'idea': return <svg {...common}><path d="M8 2a4 4 0 0 0-1 7.8V12h2V9.8A4 4 0 0 0 8 2z" /><path d="M6.5 14h3" /></svg>
     case 'chevron': return <svg {...common}><path d="M6 3l5 5-5 5" /></svg>
+    case 'model': return <svg {...common}><rect x="2.5" y="3" width="11" height="10" rx="2" /><path d="M5 6h6M5 8.5h4M5 11h2" /></svg>
     default: return <svg {...common}><circle cx="8" cy="8" r="5" /></svg>
   }
 }
@@ -671,6 +733,112 @@ function MultiSelectDropdown({ label, options, selected, open, onToggle, onClose
               )
             })}
             {options.length === 0 && <div style={{ padding: '6px 8px', color: 'var(--dsw-alias-label-secondary)', fontSize: 12 }}>无选项</div>}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function QuickModelPicker({ runtime, value, onChange, disabled, onError }: {
+  runtime: WorkbenchRuntime
+  value: QuickModelSelection | null
+  onChange: (selection: QuickModelSelection | null) => void
+  disabled?: boolean
+  onError: (message: string) => void
+}): JSX.Element {
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const sessions = runtime.sessions.list.getSnapshot()
+  const directorySessionId = sessions.current ?? sessions.ids[0] ?? ''
+  const directory = useMemo(() => {
+    if (runtime.modelDirectories === undefined || directorySessionId === '') return undefined
+    try { return runtime.modelDirectories.directoryFor(directorySessionId) } catch { return undefined }
+  }, [runtime.modelDirectories, directorySessionId])
+  const subscribeModelDirectory = useCallback((listener: () => void) => directory?.store.subscribe(listener) ?? (() => undefined), [directory])
+  const getModelDirectorySnapshot = useCallback(() => directory?.store.getSnapshot() ?? EMPTY_MODEL_DIRECTORY_STATE, [directory])
+  const state = useSyncExternalStore(
+    subscribeModelDirectory,
+    getModelDirectorySnapshot,
+    () => EMPTY_MODEL_DIRECTORY_STATE,
+  )
+  const selectedLabel = useMemo(() => {
+    if (value === null) return '跟随 DSH 默认模型'
+    for (const group of state.groups) {
+      const model = group.models.find((item) => item.id === value.model)
+      if (group.id === value.provider && model !== undefined) {
+        const effort = model.reasoning?.efforts.find((item) => item.id === value.reasoningEffort)
+        return effort === undefined ? model.name : `${model.name} · ${effort.name}`
+      }
+    }
+    return value.effortLabel === undefined ? value.label : `${value.label} · ${value.effortLabel}`
+  }, [state.groups, value])
+  const openPicker = (): void => {
+    if (directory === undefined) {
+      onError('当前 DSH 未提供模型选择接口，无法读取模型列表')
+      return
+    }
+    setOpen((prev) => !prev)
+    setLoading(true)
+    void directory.load()
+      .catch((e: unknown) => onError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false))
+  }
+  const chooseModel = (group: ModelProviderGroup, model: ModelProviderGroup['models'][number]): void => {
+    const effortId = model.reasoning?.defaultEffort
+    const effort = model.reasoning?.efforts.find((item) => item.id === effortId)
+    onChange({
+      provider: group.id,
+      model: model.id,
+      label: model.name,
+      ...(effortId !== undefined && effortId !== '' ? { reasoningEffort: effortId } : {}),
+      ...(effort !== undefined ? { effortLabel: effort.name } : {}),
+    })
+    setOpen(false)
+  }
+  return (
+    <div style={{ position: 'relative' }}>
+      <button type="button" className="wb-btn" disabled={disabled === true} onClick={openPicker} title="选择快速录入澄清会话使用的模型">
+        <Icon name="model" />{selectedLabel}<span style={{ flex: 'none' }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 20 }} onClick={() => setOpen(false)} />
+          <div style={{ position: 'absolute', left: 0, top: 'calc(100% + 4px)', zIndex: 30, width: 320, maxHeight: 360, overflowY: 'auto', background: 'var(--dsw-alias-bg-layer-2, #1c1c1f)', border: '1px solid var(--dsw-alias-border-l1, rgba(255,255,255,.22))', borderRadius: 10, padding: 6, boxShadow: '0 12px 32px rgba(0,0,0,.45)' }}>
+            <button type="button" className="wb-model-option" onClick={() => { onChange(null); setOpen(false) }}>
+              <span style={{ flex: 1 }}>跟随 DSH 默认模型</span>
+              {value === null && <Icon name="check" size={14} />}
+            </button>
+            {loading || state.status === 'loading'
+              ? <div style={{ padding: '8px 10px', color: 'var(--dsw-alias-label-secondary)', fontSize: 12 }}>正在读取模型列表…</div>
+              : null}
+            {state.error !== null && <div style={{ padding: '8px 10px', color: '#E74C3C', fontSize: 12 }}>{state.error}</div>}
+            {state.groups.map((group) => (
+              <div key={group.id} style={{ borderTop: '1px solid var(--dsw-alias-border-l1, rgba(255,255,255,.12))', marginTop: 6, paddingTop: 6 }}>
+                <div style={{ padding: '4px 8px', color: 'var(--dsw-alias-label-secondary)', fontSize: 11, fontWeight: 700 }}>{group.name}</div>
+                {group.models.map((model) => {
+                  const selected = value?.provider === group.id && value.model === model.id
+                  const effort = model.reasoning?.efforts.find((item) => item.id === model.reasoning?.defaultEffort)
+                  return (
+                    <button key={model.id} type="button" className={`wb-model-option ${selected ? 'selected' : ''}`} onClick={() => chooseModel(group, model)}>
+                      <span style={{ minWidth: 0, flex: 1 }}>
+                        <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{model.name}</span>
+                        {effort !== undefined && <span style={{ display: 'block', color: 'var(--dsw-alias-label-secondary)', fontSize: 11 }}>{effort.name}</span>}
+                      </span>
+                      {selected && <Icon name="check" size={14} />}
+                    </button>
+                  )
+                })}
+              </div>
+            ))}
+            {state.groups.length === 0 && !loading && state.status !== 'loading' && state.error === null && (
+              <div style={{ padding: '8px 10px', color: 'var(--dsw-alias-label-secondary)', fontSize: 12 }}>暂无可用模型</div>
+            )}
+            {state.failures.length > 0 && (
+              <div style={{ borderTop: '1px solid var(--dsw-alias-border-l1, rgba(255,255,255,.12))', marginTop: 6, padding: '6px 8px', color: 'var(--dsw-alias-label-secondary)', fontSize: 11 }}>
+                {state.failures.length} 个模型来源读取失败
+              </div>
+            )}
           </div>
         </>
       )}
@@ -1024,6 +1192,7 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
   const [eventsExpanded, setEventsExpanded] = useState(false)
   const [showQuick, setShowQuick] = useState(false)
   const [quickText, setQuickText] = useState('')
+  const [quickModelSelection, setQuickModelSelectionState] = useState<QuickModelSelection | null>(() => readQuickModelSelection())
   const [pendingDraft, setPendingDraft] = useState<DraftView | null>(null)
   const [reminders, setReminders] = useState<Array<{ reminderId: string; taskId: string; title: string; dueAt: string; methodCode: string }>>([])
   const [error, setError] = useState<string | null>(null)
@@ -1247,6 +1416,21 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
     promptResolveRef.current = resolve
     setPromptModal({ title, value: '' })
   })
+  const setQuickModelSelection = (selection: QuickModelSelection | null): void => {
+    setQuickModelSelectionState(selection)
+    writeQuickModelSelection(selection)
+  }
+  const applyQuickModelSelection = async (sessionId: string): Promise<void> => {
+    if (quickModelSelection === null) return
+    const directory = runtime.modelDirectories?.directoryFor(sessionId)
+    if (directory === undefined) throw new Error('当前 DSH 未提供模型选择接口，无法为快速录入切换模型')
+    await directory.load()
+    await directory.select({
+      provider: quickModelSelection.provider,
+      model: quickModelSelection.model,
+      ...(quickModelSelection.reasoningEffort !== undefined ? { reasoningEffort: quickModelSelection.reasoningEffort } : {}),
+    })
+  }
   const confirmPrompt = (): void => {
     const resolve = promptResolveRef.current
     promptResolveRef.current = null
@@ -1363,6 +1547,7 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
       const id = await runtime.uiWorkspace.connectWorkspace(workspaceId)
       const binding = runtime.sessions.binding(id)
       if (binding === undefined) throw new Error('会话绑定未就绪，请稍后重试')
+      if (mode === 'clarify') await applyQuickModelSelection(id)
       const workspaceRootLabel = normalizedRoot !== '' ? normalizedRoot : '当前连接工作区'
       const taskFolderPrompt = taskFolderPath === ''
         ? ''
@@ -1428,7 +1613,7 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
         : mode === 'plan'
         ? planPrompt
         : mode === 'clarify'
-        ? `你是“个人工作台”的任务澄清助手。请按 workbench-intake 规范执行。\n\n用户想创建的任务是：\n「${text}」\n\n当前时间：${new Date().toISOString()}\nAI 工作区根目录：${workspaceRootLabel}\n本次预分配任务 id：${reservedTaskId}${taskFolderPath !== '' ? `\n任务资料夹：${taskFolderPath}${taskFolderRelative !== '' ? `\n任务资料夹相对路径：./${taskFolderRelative}/` : ''}` : ''}\n\n请先澄清必要信息（一次一个主题，最多5轮）。除非用户明确要求为这条任务指定资料夹，否则不要再询问工作区路径。信息足够后调用 workbench_submit_task 提交结构化任务草稿，并且必须传入 task_id="${reservedTaskId}"${taskFolderPath !== '' ? `、workspace_path="${taskFolderPath}"` : ''}。如需在澄清阶段创建文件，请放在${taskFolderRelative !== '' ? `工作区内的 ./${taskFolderRelative}/` : '任务资料夹'}。不要执行任务本身。`
+        ? `你是“个人工作台”的任务澄清助手。请按 workbench-intake 规范执行。\n\n用户想创建的任务是：\n「${text}」\n\n当前时间：${new Date().toISOString()}\n本次会话模型：${quickModelSelection === null ? '跟随 DSH 默认模型' : quickModelSelection.effortLabel === undefined ? quickModelSelection.label : `${quickModelSelection.label} · ${quickModelSelection.effortLabel}`}\nAI 工作区根目录：${workspaceRootLabel}\n本次预分配任务 id：${reservedTaskId}${taskFolderPath !== '' ? `\n任务资料夹：${taskFolderPath}${taskFolderRelative !== '' ? `\n任务资料夹相对路径：./${taskFolderRelative}/` : ''}` : ''}\n\n请先澄清必要信息（一次一个主题，最多5轮）。除非用户明确要求为这条任务指定资料夹，否则不要再询问工作区路径。信息足够后调用 workbench_submit_task 提交结构化任务草稿，并且必须传入 task_id="${reservedTaskId}"${taskFolderPath !== '' ? `、workspace_path="${taskFolderPath}"` : ''}。如需在澄清阶段创建文件，请放在${taskFolderRelative !== '' ? `工作区内的 ./${taskFolderRelative}/` : '任务资料夹'}。不要执行任务本身。`
         : mode === 'consult'
           ? `你是“个人工作台”的任务协助助手。请针对下面这个任务提供咨询、拆解或复盘建议（咨询模式不执行）。\n\n任务 id：${task?.id}\n任务标题：${task?.title}\n任务描述：${task?.description || '（无）'}\n类型：${task?.typeCode} 优先级：${task?.priorityCode} 状态：${task?.statusCode}\n截止：${task?.effectiveDueAt ?? task?.dueAt ?? '无'}${taskFolderPrompt}\n${memoryContext !== '' ? `\n任务共享记忆（同一任务/子树）：\n${memoryContext}` : ''}\n\n请先理解任务，再给出建议；如果信息不足，可以一次问一个问题。\n\n重要：如果用户要求把结论/补充信息保存回任务，请调用 workbench_update_task(task_id="${task?.id ?? ''}", description="...") 更新原任务；绝对不要调用 workbench_submit_task 新建任务。`
           : mode === 'breakdown'
@@ -1892,7 +2077,8 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
             <div className="wb-form-panel">
               <h4><Icon name="sparkles" />快速录入 <span style={{ fontSize: 12, color: 'var(--dsw-alias-label-secondary)' }}>（将跳转官方会话区进行需求澄清）</span></h4>
               <textarea rows={3} style={{ width: '100%', minHeight: 76, background: 'var(--dsw-alias-bg-base,#17171a)', border: '1px solid var(--dsw-alias-border-l1,rgba(255,255,255,.18))', color: 'inherit', borderRadius: 10, padding: 10, boxSizing: 'border-box', fontSize: 14 }} value={quickText} onChange={(e) => setQuickText(e.target.value)} placeholder="一句话描述任务，例如：周五10:30接待重要客户" />
-              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <QuickModelPicker runtime={runtime} value={quickModelSelection} onChange={setQuickModelSelection} disabled={busy} onError={setError} />
                 <button className="wb-btn primary lg" disabled={busy || quickText.trim() === ''} onClick={() => void startAISession('clarify', null, quickText)}>🚀 创建澄清会话</button>
                 <button className="wb-btn" onClick={() => setShowQuick(false)}>取消</button>
               </div>
@@ -2690,7 +2876,7 @@ function conversationColumn(): HTMLElement | undefined {
 }
 
 export const name = 'personal-workbench-client'
-export const inject = ['sessions', 'workspaces', 'connection', 'uiWorkspace']
+export const inject = ['sessions', 'workspaces', 'connection', 'uiWorkspace', 'modelDirectories']
 
 export function apply(ctx: unknown): () => void {
   const runtime = ctx as WorkbenchRuntime
