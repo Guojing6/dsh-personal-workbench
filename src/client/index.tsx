@@ -1302,37 +1302,63 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
           }
         }
       }
-      const ws = runtime.workspaces.list.getSnapshot()
-      let workspaceId = ws.items[0]?.workspaceId
-      const hostHome = runtime.connection?.generation.getSnapshot()?.host.home
-      const isWsl = hostHome !== undefined
-        ? isWslStylePath(hostHome)
-        : ws.items.some((item) => typeof item.path === 'string' && isWslStylePath(item.path))
-      const pathSep = isWsl ? '/' : '\\'
-      let desired = ''
-      if (task !== null) {
-        desired = task.workspacePath ?? ''
-        if (settings.defaultWorkspace !== '' && settings.autoCreateTypeFolders && (desired === '' || isAutoTaskWorkspacePath(desired, task.id))) {
-          desired = joinPath(settings.defaultWorkspace, taskWorkspaceFolderName(task.id), pathSep)
+      let workspaceId: string | undefined
+      let id = ''
+      let binding: { session: SessionDriver } | undefined
+      if (mode === 'clarify') {
+        const sessionsState = runtime.sessions.list.getSnapshot()
+        const currentId = sessionsState.current
+        const current = currentId === undefined ? undefined : sessionsState.byId[currentId]
+        if (currentId !== undefined && currentId !== '' && current?.blank === true) {
+          id = currentId
+          binding = runtime.sessions.binding(currentId)
         }
-      }
-      // WSL 下把 Windows 盘符路径（D:\Code）统一归一化为真实路径（/mnt/d/Code）。
-      // 相对路径和已是 /mnt/... 的路径不会被转换；原生 Windows 上不做转换。
-      const normalizedDesired = desired === '' ? '' : isWsl ? normalizeWindowsPathToWsl(desired) : desired
-      if (normalizedDesired !== '') {
-        try {
-          await api('/api/workbench/workspaces/ensure', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: normalizedDesired }) })
-          const created = await runtime.workspaces.create?.({ path: normalizedDesired })
-          if (typeof created?.workspaceId === 'string' && created.workspaceId !== '') workspaceId = created.workspaceId
-          // 自动生成的任务工作区回写到任务；用户手动填写的特殊路径不会被覆盖。
-          if (task !== null && (task.workspacePath === null || isAutoTaskWorkspacePath(task.workspacePath, task.id)) && normalizedDesired !== '') {
-            void api(`/api/workbench/tasks/${task.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ workspacePath: normalizedDesired }) }).catch(() => undefined)
+        if (binding === undefined) {
+          const ws = runtime.workspaces.list.getSnapshot()
+          const normalize = (path: string): string => path.trim().replace(/\\/g, '/').replace(/\/+$/g, '').toLowerCase()
+          const currentCwd = typeof current?.cwd === 'string' && current.cwd !== '' ? normalize(current.cwd) : ''
+          const defaultRoot = settings.defaultWorkspace === '' ? '' : normalize(settings.defaultWorkspace)
+          workspaceId =
+            (currentCwd === '' ? undefined : ws.items.find((item) => typeof item.path === 'string' && normalize(item.path) === currentCwd)?.workspaceId)
+            ?? ws.items.find((item) => typeof item.path !== 'string' || defaultRoot === '' || !normalize(item.path).startsWith(`${defaultRoot}/`))?.workspaceId
+            ?? ws.items[0]?.workspaceId
+          if (workspaceId === undefined) throw new Error('没有可用工作区，请先在 DSH 中打开一个工作区')
+          id = await runtime.uiWorkspace.connectWorkspace(workspaceId)
+          binding = runtime.sessions.binding(id)
+        }
+      } else {
+        const ws = runtime.workspaces.list.getSnapshot()
+        workspaceId = ws.items[0]?.workspaceId
+        const hostHome = runtime.connection?.generation.getSnapshot()?.host.home
+        const isWsl = hostHome !== undefined
+          ? isWslStylePath(hostHome)
+          : ws.items.some((item) => typeof item.path === 'string' && isWslStylePath(item.path))
+        const pathSep = isWsl ? '/' : '\\'
+        let desired = ''
+        if (task !== null) {
+          desired = task.workspacePath ?? ''
+          if (settings.defaultWorkspace !== '' && settings.autoCreateTypeFolders && (desired === '' || isAutoTaskWorkspacePath(desired, task.id))) {
+            desired = joinPath(settings.defaultWorkspace, taskWorkspaceFolderName(task.id), pathSep)
           }
-        } catch { /* 目录创建/注册失败则回退当前工作区 */ }
+        }
+        // WSL 下把 Windows 盘符路径（D:\Code）统一归一化为真实路径（/mnt/d/Code）。
+        // 相对路径和已是 /mnt/... 的路径不会被转换；原生 Windows 上不做转换。
+        const normalizedDesired = desired === '' ? '' : isWsl ? normalizeWindowsPathToWsl(desired) : desired
+        if (normalizedDesired !== '') {
+          try {
+            await api('/api/workbench/workspaces/ensure', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: normalizedDesired }) })
+            const created = await runtime.workspaces.create?.({ path: normalizedDesired })
+            if (typeof created?.workspaceId === 'string' && created.workspaceId !== '') workspaceId = created.workspaceId
+            // 自动生成的任务工作区回写到任务；用户手动填写的特殊路径不会被覆盖。
+            if (task !== null && (task.workspacePath === null || isAutoTaskWorkspacePath(task.workspacePath, task.id)) && normalizedDesired !== '') {
+              void api(`/api/workbench/tasks/${task.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ workspacePath: normalizedDesired }) }).catch(() => undefined)
+            }
+          } catch { /* 目录创建/注册失败则回退当前工作区 */ }
+        }
+        if (workspaceId === undefined) throw new Error('没有可用工作区，请先在 DSH 中打开一个工作区')
+        id = await runtime.uiWorkspace.connectWorkspace(workspaceId)
+        binding = runtime.sessions.binding(id)
       }
-      if (workspaceId === undefined) throw new Error('没有可用工作区，请先在 DSH 中打开一个工作区')
-      const id = await runtime.uiWorkspace.connectWorkspace(workspaceId)
-      const binding = runtime.sessions.binding(id)
       if (binding === undefined) throw new Error('会话绑定未就绪，请稍后重试')
       await binding.session.rename(mode === 'idea_association' ? '点子关联' : mode === 'idea_brainstorm' ? '点子头脑风暴' : mode === 'knowledge_doc' ? `知识总结：${docContext?.name ?? '本地文档'}` : mode === 'report' ? `${text.startsWith('week:') ? '周报' : '日报'}：${text.split(':')[1] ?? ''}` : mode === 'plan' ? `AI 计划：${planAnchor.slice(5)}` : mode === 'clarify' ? `澄清：${text.slice(0, 24)}` : mode === 'consult' ? `协助：${task?.title.slice(0, 24)}` : mode === 'breakdown' ? `拆解：${task?.title.slice(0, 24)}` : mode === 'review' ? `复盘：${task?.title.slice(0, 24)}` : `执行：${task?.title.slice(0, 24)}`).catch(() => undefined)
       let reportContextText = ''
