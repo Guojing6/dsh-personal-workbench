@@ -61,6 +61,10 @@ html[${PENDING_ATTR}] [${ENTRY_ATTR}]::after { content:''; position:absolute; to
 .wb-btn svg { width:15px; height:15px; }
 .wb-btn:hover { background: color-mix(in srgb, var(--dsw-alias-label-primary, #fff) 6%, transparent); color:var(--dsw-alias-label-primary); }
 .wb-btn.primary { background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4f8ef7) 16%, transparent); border:1px solid color-mix(in srgb, var(--dsw-alias-state-business-primary, #4f8ef7) 38%, transparent); color:var(--dsw-alias-label-primary); }
+.wb-pending-pill { display:inline-flex; align-items:center; gap:6px; border:1px solid color-mix(in srgb, #d9a03f 42%, transparent); background:color-mix(in srgb, #d9a03f 13%, transparent); color:var(--dsw-alias-label-primary); border-radius:999px; padding:6px 10px; cursor:pointer; font:inherit; font-size:12.5px; font-weight:700; white-space:nowrap; }
+.wb-pending-pill svg { width:13px; height:13px; }
+.wb-pending-pill .count { display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 5px; border-radius:999px; background:color-mix(in srgb, #d9a03f 24%, transparent); font-size:11px; }
+.wb-pending-pill:hover { border-color:color-mix(in srgb, #d9a03f 62%, transparent); background:color-mix(in srgb, #d9a03f 18%, transparent); }
 .wb-body { flex:1; min-height:0; display:flex; }
 .wb-nav { flex:0 0 min(56%, 880px); min-width:420px; overflow:auto; padding:0 18px 16px; box-sizing:border-box; border-right:1px solid var(--dsw-alias-border-l1, rgba(127,127,127,.14)); }
 .wb-nav > :first-child:not(.wb-stats-sticky) { margin-top:16px; }
@@ -513,6 +517,21 @@ const fmtTime = (iso: string): string => {
   if (Number.isNaN(d.getTime())) return iso
   return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
+
+/** 草稿类型的中文短标签（待处理入口用）。 */
+const DRAFT_KIND_LABELS: Record<string, string> = {
+  task: '任务草稿',
+  subtask_plan: '子任务提案',
+  daily_plan: '今日计划提案',
+  report: '报告草稿',
+  knowledge: '知识条目',
+  idea_cluster: '点子王提案',
+  idea_tasks: '点子落地提案',
+  completion: '完成验收申请',
+  review: '复盘草稿',
+}
+const draftKindLabel = (kindCode: string): string => DRAFT_KIND_LABELS[kindCode] ?? '草稿'
+
 const ROLE_LABELS: Record<string, string> = {
   clarify: '澄清会话',
   consult: '协助会话',
@@ -1324,6 +1343,7 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
   const [reminders, setReminders] = useState<Array<{ reminderId: string; taskId: string; title: string; dueAt: string; methodCode: string }>>([])
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [pendingOpen, setPendingOpen] = useState(false)
   const [settings, setSettings] = useState<{ defaultWorkspace: string; autoCreateTypeFolders: boolean; desktopNotify: boolean }>({ defaultWorkspace: '', autoCreateTypeFolders: true, desktopNotify: true })
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [notifyPerm, setNotifyPerm] = useState<NotificationPermission | 'unsupported'>(() => typeof Notification === 'undefined' ? 'unsupported' : Notification.permission)
@@ -2108,6 +2128,8 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
   })()
 
   const sessionListSnapshot = runtime.sessions.list.getSnapshot()
+  /** 待你处理的事项数：待确认草稿 1 条 + 到期提醒 N 条。 */
+  const pendingCount = (pendingDraft === null ? 0 : 1) + reminders.length
   const linkedSessionIds = new Set((selected?.sessions ?? []).map((s) => typeof s.session_id === 'string' ? s.session_id : '').filter((id) => id !== ''))
   const sessionQuery = sessionPickerQuery.trim().toLowerCase()
   const sessionCandidates = sessionListSnapshot.ids
@@ -2128,6 +2150,11 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
         </div>
         <div style={{ flex: 1 }} />
         <button className={`wb-btn ${showQuick ? 'primary' : ''}`} onClick={() => setShowQuick((v) => !v)} disabled={busy}><Icon name="sparkles" /><span className="wb-label">快速录入</span></button>
+        {pendingCount > 0 && (
+          <button className="wb-pending-pill" onClick={() => setPendingOpen(true)} title="待你处理的草稿与提醒">
+            <Icon name="bell" size={13} />待处理 <span className="count">{pendingCount}</span>
+          </button>
+        )}
         <button className="wb-btn" onClick={() => setShowForm((v) => !v)}><Icon name="plus" /><span className="wb-label">新建</span></button>
         <button className="wb-btn" onClick={() => setShowSettings((v) => !v)}><Icon name="settings" /><span className="wb-label">设置</span></button>
         <button className="wb-btn" onClick={collapseAll}><Icon name="list" /><span className="wb-label">收起全部</span></button>
@@ -3207,6 +3234,34 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
             )}
         </div>
       </div>
+       {pendingOpen && (
+         <div className="wb-modal-mask" onClick={() => setPendingOpen(false)}>
+           <div className="wb-modal" onClick={(e) => e.stopPropagation()}>
+             <h4>待你处理（{pendingCount}）</h4>
+             <div style={{ maxHeight: 'min(56vh, 420px)', overflow: 'auto' }}>
+             {pendingDraft !== null && (
+               <div className="wb-row" style={{ cursor: 'default', alignItems: 'flex-start' }}>
+                 <span style={{ flex: 1 }}>
+                  <b>待确认的{draftKindLabel(pendingDraft.kindCode)}</b>
+                  <span className="wb-switch-desc">AI 已提交，确认后才会写入工作台。</span>
+                </span>
+                <button className="wb-btn primary" onClick={() => setPendingOpen(false)}>知道了</button>
+              </div>
+            )}
+            {reminders.map((r) => (
+              <div key={r.reminderId} className="wb-row" style={{ cursor: 'default' }}>
+                <span style={{ flex: 1 }}>{r.title} · {fmtTime(r.dueAt)}</span>
+                <button className="wb-btn" onClick={() => void fireReminder(r.reminderId)}>知道了</button>
+              </div>
+             ))}
+             {pendingCount === 0 && <p className="wb-hint">暂无待处理事项。</p>}
+             </div>
+             <div className="wb-modal-actions">
+               <button className="wb-btn" onClick={() => setPendingOpen(false)}>关闭</button>
+             </div>
+           </div>
+         </div>
+       )}
     </div>
   )
 }
