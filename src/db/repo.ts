@@ -1819,10 +1819,6 @@ export function ensureRecurringInstances(db: DatabaseSync, today = localDateStri
   return created
 }
 
-// ---------------------------------------------------------------------------
-// knowledge base（V2.5：个人知识库 / 错题集）
-// ---------------------------------------------------------------------------
-
 export interface KnowledgeInput {
   kindCode?: string
   title: string
