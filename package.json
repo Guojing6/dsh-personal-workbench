@@ -36,7 +36,9 @@
         "workspaces",
         "connection",
         "uiWorkspace",
-        "modelDirectories"
+        "modelDirectories",
+        "remote",
+        "remote.session"
       ],
       "platform": "web"
     }

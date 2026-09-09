@@ -3025,7 +3025,7 @@ function conversationColumn(): HTMLElement | undefined {
 }
 
 export const name = 'dsh-workbench-client'
-export const inject = ['sessions', 'workspaces', 'connection', 'uiWorkspace', 'modelDirectories']
+export const inject = ['sessions', 'workspaces', 'connection', 'uiWorkspace', 'modelDirectories', 'remote', 'remote.session']
 
 export function apply(ctx: unknown): () => void {
   const runtime = ctx as WorkbenchRuntime
