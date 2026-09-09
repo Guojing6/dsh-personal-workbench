@@ -13,6 +13,44 @@ import { makeOpenFileRoute } from '../lib/api/openFileRoute.js'
 import { makeRoutes } from '../lib/api/routes.js'
 import { createKnowledge, createTask, localDateString, updateTask } from '../lib/db/repo.js'
 
+function makeStoredZip(entries) {
+  const localParts = []
+  const centralParts = []
+  let offset = 0
+  for (const [name, content] of entries) {
+    const nameBuffer = Buffer.from(name)
+    const data = Buffer.from(content)
+    const local = Buffer.alloc(30)
+    local.writeUInt32LE(0x04034b50, 0)
+    local.writeUInt16LE(20, 4)
+    local.writeUInt16LE(0, 8)
+    local.writeUInt32LE(data.length, 18)
+    local.writeUInt32LE(data.length, 22)
+    local.writeUInt16LE(nameBuffer.length, 26)
+    localParts.push(local, nameBuffer, data)
+
+    const central = Buffer.alloc(46)
+    central.writeUInt32LE(0x02014b50, 0)
+    central.writeUInt16LE(20, 6)
+    central.writeUInt16LE(0, 10)
+    central.writeUInt32LE(data.length, 20)
+    central.writeUInt32LE(data.length, 24)
+    central.writeUInt16LE(nameBuffer.length, 28)
+    central.writeUInt32LE(offset, 42)
+    centralParts.push(central, nameBuffer)
+    offset += local.length + nameBuffer.length + data.length
+  }
+  const centralOffset = offset
+  const centralSize = centralParts.reduce((sum, part) => sum + part.length, 0)
+  const eocd = Buffer.alloc(22)
+  eocd.writeUInt32LE(0x06054b50, 0)
+  eocd.writeUInt16LE(entries.length, 8)
+  eocd.writeUInt16LE(entries.length, 10)
+  eocd.writeUInt32LE(centralSize, 12)
+  eocd.writeUInt32LE(centralOffset, 16)
+  return Buffer.concat([...localParts, ...centralParts, eocd])
+}
+
 function startTestServer() {
   const db = openWorkbenchDb({ dbPath: ':memory:' })
   const routes = [makeDictionaryRoute(db), makeLocalDirRoute(), makeOpenFileRoute(), ...makeRoutes(db)]
@@ -231,6 +269,40 @@ test('knowledge API supports file_link and local document reading', async () => 
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+test('quick attachment extraction accepts pdf/docx and rejects other documents', async () => {
+  await withServer(async ({ request }) => {
+    const pdfText = 'BT /F1 12 Tf 72 720 Td (PDF Notice) Tj ET'
+    const pdf = Buffer.from(`%PDF-1.4\n1 0 obj\n<< /Length ${pdfText.length} >>\nstream\n${pdfText}\nendstream\nendobj\n%%EOF`, 'latin1')
+    const extractedPdf = await request('POST', '/api/workbench/quick-attachments/extract-text', {
+      name: 'notice.pdf',
+      mediaType: 'application/pdf',
+      data: pdf.toString('base64'),
+    })
+    assert.equal(extractedPdf.status, 200)
+    assert.match(extractedPdf.body.content, /PDF Notice/)
+
+    const docx = makeStoredZip([
+      ['word/document.xml', '<w:document><w:body><w:p><w:r><w:t>会议通知</w:t></w:r></w:p><w:p><w:r><w:t>周五 10:30 接待客户</w:t></w:r></w:p></w:body></w:document>'],
+    ])
+    const extracted = await request('POST', '/api/workbench/quick-attachments/extract-text', {
+      name: 'notice.docx',
+      mediaType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      data: docx.toString('base64'),
+    })
+    assert.equal(extracted.status, 200)
+    assert.match(extracted.body.content, /会议通知/)
+    assert.match(extracted.body.content, /周五 10:30/)
+
+    const rejected = await request('POST', '/api/workbench/quick-attachments/extract-text', {
+      name: 'notice.txt',
+      mediaType: 'text/plain',
+      data: Buffer.from('hello').toString('base64'),
+    })
+    assert.equal(rejected.status, 400)
+    assert.match(rejected.body.error, /PDF 和 DOCX/)
+  })
 })
 
 test('dictionary CRUD API creates, edits, deactivates, protects builtin and blocks invalid code', async () => {
