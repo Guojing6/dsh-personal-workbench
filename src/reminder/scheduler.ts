@@ -9,8 +9,6 @@
  * - 未安装/未配置通道：**不写 fired_at**，前端继续负责（静默降级）。
  */
 import type { Context } from '@deepseek-ai/cordis'
-// 只为类型增强 ctx.interval（随 fiber 自动销毁的定时器）；运行时不 import，避免硬依赖。
-import type {} from '@deepseek-ai/cordis-plugin-timer'
 import type { DatabaseSync } from 'node:sqlite'
 import {
   countFiredRemindersSince,
@@ -47,6 +45,10 @@ export interface ScanResult {
 
 const SCAN_INTERVAL_MS = 30_000
 const QUEUE_FLUSH_INTERVAL_MS = 60_000
+
+type TimerContext = Context & {
+  interval(callback: () => void, ms: number): () => void
+}
 
 export class ReminderScheduler {
   private readonly deps: SchedulerDeps
@@ -193,8 +195,9 @@ export class ReminderScheduler {
    * 返回 dispose 函数，供测试与手动关闭使用。
    */
   start(ctx: Context): () => void {
-    const scanDispose = ctx.interval(() => { void this.scan().catch((error) => this.log(`scan failed: ${String(error)}`)) }, SCAN_INTERVAL_MS)
-    const flushDispose = ctx.interval(() => {
+    const timerCtx = ctx as TimerContext
+    const scanDispose = timerCtx.interval(() => { void this.scan().catch((error) => this.log(`scan failed: ${String(error)}`)) }, SCAN_INTERVAL_MS)
+    const flushDispose = timerCtx.interval(() => {
       void (async () => {
         if (this.deps.readInboundCount !== undefined) {
           try {

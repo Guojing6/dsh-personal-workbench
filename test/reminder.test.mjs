@@ -16,12 +16,22 @@ import { ReminderScheduler } from '../lib/reminder/scheduler.js'
 
 function withDb(fn) {
   const dir = mkdtempSync(join(tmpdir(), 'dsh-personal-workbench-reminder-'))
-  try {
-    const db = openWorkbenchDb({ dbPath: join(dir, 'workbench.db') })
-    seedDictionaries(db)
-    return fn(db)
-  } finally {
+  const db = openWorkbenchDb({ dbPath: join(dir, 'workbench.db') })
+  const cleanup = () => {
+    db.close()
     rmSync(dir, { recursive: true, force: true })
+  }
+  try {
+    seedDictionaries(db)
+    const result = fn(db)
+    if (result !== null && typeof result === 'object' && typeof result.then === 'function') {
+      return result.finally(cleanup)
+    }
+    cleanup()
+    return result
+  } catch (error) {
+    cleanup()
+    throw error
   }
 }
 
