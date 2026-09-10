@@ -100,7 +100,7 @@ export function submitTaskTool(db: DatabaseSync) {
         aiPolicyCode,
         reminderOffsetMinutes: reminderOffset ?? null,
         parentId: str(args.parent_id) ?? null,
-        workspacePath: str(args.workspace_path) ?? null,
+        workspacePath: str(args.workspace_path) ?? exec.agent?.session?.header?.cwd ?? null,
         subtasks: args.subtasks ?? [],
         extra: args.extra ?? {},
         source: 'nl',
