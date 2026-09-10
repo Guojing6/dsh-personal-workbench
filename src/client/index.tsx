@@ -1752,24 +1752,8 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
         ? isWslStylePath(hostHome)
         : ws.items.some((item) => typeof item.path === 'string' && isWslStylePath(item.path))
       const pathSep = isWsl ? '/' : '\\'
-      const normalize = (path: string): string => path.trim().replace(/\\/g, '/').replace(/\/+$/g, '').toLowerCase()
       const rootDesired = activeSettings.defaultWorkspace.trim()
       const normalizedRoot = rootDesired === '' ? '' : isWsl ? normalizeWindowsPathToWsl(rootDesired) : rootDesired
-      if (normalizedRoot !== '') {
-        const existingRootWorkspaceId = ws.items.find((item) => typeof item.path === 'string' && normalize(item.path) === normalize(normalizedRoot))?.workspaceId
-        if (existingRootWorkspaceId !== undefined) {
-          workspaceId = existingRootWorkspaceId
-        } else {
-          try {
-            await api('/api/workbench/workspaces/ensure', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: normalizedRoot }) })
-            const created = await runtime.workspaces.create?.({ path: normalizedRoot })
-            if (typeof created?.workspaceId === 'string' && created.workspaceId !== '') workspaceId = created.workspaceId
-          } catch (workspaceError) {
-            throw new Error(`无法注册 AI 工作区 ${normalizedRoot}：${workspaceError instanceof Error ? workspaceError.message : String(workspaceError)}`)
-          }
-          if (workspaceId === undefined) throw new Error(`无法注册 AI 工作区 ${normalizedRoot}，请重载或重新安装 dsh-workbench 插件后再试`)
-        }
-      }
       const hasCustomTaskFolder = task?.workspacePath !== null && task?.workspacePath !== undefined && task.workspacePath.trim() !== '' && !isAutoTaskWorkspacePath(task.workspacePath, task.id)
       if (hasCustomTaskFolder && task !== null) {
         taskFolderPath = task.workspacePath ?? ''
@@ -1788,7 +1772,8 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
       const binding = runtime.sessions.binding(id)
       if (binding === undefined) throw new Error('会话绑定未就绪，请稍后重试')
       if (mode === 'clarify') await applyQuickModelSelection(id)
-      const workspaceRootLabel = normalizedRoot !== '' ? normalizedRoot : '当前连接工作区'
+      const currentWorkspacePath = ws.items.find((item) => item.workspaceId === workspaceId)?.path
+      const workspaceRootLabel = currentWorkspacePath ?? '当前连接工作区'
       const taskFolderPrompt = taskFolderPath === ''
         ? ''
         : `\n\n工作区根目录：${workspaceRootLabel}\n任务资料夹：${taskFolderPath}${taskFolderRelative !== '' ? `\n任务资料夹相对路径：./${taskFolderRelative}/` : ''}\n如需创建或修改本任务相关文件，请放在${taskFolderRelative !== '' ? `工作区内的 ./${taskFolderRelative}/` : '上述任务资料夹'}，不要在工作区根目录散放文件。`

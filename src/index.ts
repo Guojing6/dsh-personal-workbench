@@ -7,6 +7,9 @@ import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-commands'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-tools'
+import { randomUUID } from 'node:crypto'
+import { mkdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { makeDictionaryRoute } from './api/dictionaryRoute.js'
 import { makeLocalDirRoute } from './api/localDirRoute.js'
@@ -20,6 +23,7 @@ import { readReminderPolicy, writeReminderPolicy } from './reminder/config.js'
 import { ReminderScheduler } from './reminder/scheduler.js'
 import { readWeixinInboundCount } from './reminder/weixin-status.js'
 import { proposeDailyPlanTool, proposeIdeaClustersTool, proposeSubtasksTool, requestCompletionTool, saveTaskMemoryTool, submitIdeaTasksTool, submitKnowledgeTool, submitReportTool, submitReviewTool, submitTaskTool, updateTaskTool } from './tools.js'
+import { defaultTasksWorkspace } from './workbenchPaths.js'
 
 export const name = 'dsh-workbench'
 
@@ -128,8 +132,15 @@ export function apply(ctx: Context, config: Config = {}): void {
         if (!taskText) {
           return { kind: 'error', text: '请在 /workbench 后输入任务文字。' }
         }
+        const taskId = randomUUID()
+        const taskFolderPath = join(defaultTasksWorkspace(), taskId)
+        try {
+          mkdirSync(taskFolderPath, { recursive: true })
+        } catch (error) {
+          return { kind: 'error', text: `无法创建任务资料夹：${error instanceof Error ? error.message : String(error)}` }
+        }
         agent.steer(createUserMessage({
-          content: [{ type: 'text', text: `${WORKBENCH_INTAKE_COMMAND_PROMPT}\n${taskText}` }],
+          content: [{ type: 'text', text: `${WORKBENCH_INTAKE_COMMAND_PROMPT}\n\n当前时间：${new Date().toISOString()}\n本次预分配任务 id：${taskId}\n任务资料夹：${taskFolderPath}\n任务资料夹相对路径：./${taskId}/\n\n请将本次任务相关文件放入该资料夹。提交草稿时必须传入 task_id="${taskId}"、workspace_path="${taskFolderPath}"。\n\n${taskText}` }],
           source: { kind: 'user' },
         }))
         return { kind: 'success', text: '已将任务线索送入当前工作区，开始按 workbench-intake 规范澄清。' }
