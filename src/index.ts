@@ -4,6 +4,7 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-host-webserver'
+import type {} from '@deepseek-ai/dsh-commands'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-tools'
 import { makeDictionaryRoute } from './api/dictionaryRoute.js'
@@ -21,7 +22,7 @@ import { proposeDailyPlanTool, proposeIdeaClustersTool, proposeSubtasksTool, req
 
 export const name = 'dsh-workbench'
 
-export const inject = ['webServer', 'systemPrompt', 'tools']
+export const inject = ['webServer', 'systemPrompt', 'tools', 'commands']
 
 const WORKBENCH_GUIDANCE = [
   '本机已安装 dsh-workbench 插件（个人工作台）：侧边栏「工作台」入口；',
@@ -104,6 +105,23 @@ export function apply(ctx: Context, config: Config = {}): void {
       return () => { for (const dispose of disposers) dispose() }
     },
     'dsh-workbench: tools',
+  )
+
+  // 注册到 Harness 的斜杠命令发现面，使 /workbench 能在对话框补全菜单中出现。
+  // 命令本身只负责进入快速录入语义，不把输入当作普通模型消息执行。
+  ctx.effect(
+    () => ctx.commands.register({
+      name: 'workbench',
+      description: '快速录入个人工作台新任务',
+      input: { hint: '<任务文字>' },
+      handler: ({ rawInput }) => ({
+        kind: 'success',
+        text: rawInput.trim()
+          ? '已识别为工作台快速录入，请在工作台快速录入窗口中继续提交任务内容。'
+          : '请在工作台快速录入窗口中输入任务文字，或添加图片、PDF、DOCX。',
+      }),
+    }),
+    'dsh-workbench: command',
   )
 
   // 提醒调度：用 ctx.interval（随 fiber 自动销毁）。

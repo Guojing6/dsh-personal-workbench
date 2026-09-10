@@ -46,6 +46,12 @@ html[${ACTIVE_ATTR}]:not([data-dsh-taskboard-active]):not([data-dsh-ssh-active])
 html[${PENDING_ATTR}] [${ENTRY_ATTR}]::after { content:''; position:absolute; top:6px; right:10px; width:7px; height:7px; border-radius:50%; background:#e74c3c; }
 [data-dsh-frame][data-sidebar-collapsed] [${ENTRY_ATTR}] { justify-content:center; padding:0; width:100%; }
 [data-dsh-frame][data-sidebar-collapsed] [${ENTRY_ATTR}] .wb-label { display:none; }
+[data-dsh-workbench-slash-menu] { position:fixed; z-index:2147483600; min-width:260px; max-width:min(360px, calc(100vw - 24px)); padding:6px; border:1px solid var(--dsw-alias-border-l1, rgba(127,127,127,.18)); border-radius:10px; background:var(--dsw-alias-bg-layer-1, #202124); color:var(--dsw-alias-label-primary, #f3f4f6); box-shadow:0 14px 40px rgba(0,0,0,.32); font-family:var(--dsw-font-family, system-ui); }
+[data-dsh-workbench-slash-menu] button { width:100%; display:grid; grid-template-columns:28px 1fr; gap:8px; align-items:center; border:0; border-radius:8px; padding:8px 10px; background:transparent; color:inherit; text-align:left; cursor:pointer; font:inherit; }
+[data-dsh-workbench-slash-menu] button:hover, [data-dsh-workbench-slash-menu] button:focus-visible { background:color-mix(in srgb, var(--dsw-alias-state-business-primary, #4f8ef7) 16%, transparent); outline:none; }
+[data-dsh-workbench-slash-menu] .wb-slash-icon { width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; border-radius:7px; background:color-mix(in srgb, var(--dsw-alias-state-business-primary, #4f8ef7) 18%, transparent); color:var(--dsw-alias-state-business-primary, #4f8ef7); font-weight:700; }
+[data-dsh-workbench-slash-menu] .wb-slash-title { display:block; font-size:13px; font-weight:650; line-height:1.2; }
+[data-dsh-workbench-slash-menu] .wb-slash-desc { display:block; margin-top:2px; font-size:11px; line-height:1.25; color:var(--dsw-alias-label-secondary, #aaa); }
 .wb-app { height:100%; display:flex; flex-direction:column; }
 .wb-h { flex:none; display:flex; align-items:center; gap:12px; padding:14px 18px; border-bottom:1px solid var(--dsw-alias-border-l1, rgba(127,127,127,.22)); background:var(--dsw-alias-bg-layer-1, rgba(255,255,255,.02)); }
 .wb-title { display:flex; align-items:center; gap:8px; font-size:16px; font-weight:700; letter-spacing:.02em; white-space:nowrap; }
@@ -3320,6 +3326,87 @@ function newSessionButton(root: HTMLElement): HTMLButtonElement | undefined {
 function conversationColumn(): HTMLElement | undefined {
   return document.querySelector<HTMLElement>('[data-pane="conversation"], [class*="centerCol"]') ?? undefined
 }
+function composerTextarea(): HTMLTextAreaElement | null {
+  const column = document.querySelector<HTMLElement>('#root [data-slot="conversation"], [data-pane="conversation"], [class*="centerCol"]')
+  return column?.querySelector<HTMLTextAreaElement>('textarea[data-phase], textarea') ?? document.querySelector<HTMLTextAreaElement>('textarea[data-phase]')
+}
+function installWorkbenchSlashMenu(): () => void {
+  const menu = document.createElement('div')
+  menu.setAttribute('data-dsh-workbench-slash-menu', '')
+  menu.style.display = 'none'
+  menu.innerHTML = '<button type="button"><span class="wb-slash-icon">/</span><span><span class="wb-slash-title">workbench</span><span class="wb-slash-desc">快速录入新任务草稿</span></span></button>'
+  document.body.appendChild(menu)
+  const button = menu.querySelector('button')
+  let activeInput: HTMLTextAreaElement | null = null
+
+  const hide = (): void => { menu.style.display = 'none' }
+  const commandQuery = (value: string): string | null => {
+    const match = value.match(/^\/([A-Za-z]*)$/)
+    if (match === null) return null
+    const query = match[1]?.toLowerCase() ?? ''
+    return 'workbench'.startsWith(query) ? query : null
+  }
+  const showFor = (input: HTMLTextAreaElement): void => {
+    const query = commandQuery(input.value)
+    if (query === null) { hide(); return }
+    activeInput = input
+    const rect = input.getBoundingClientRect()
+    const width = Math.min(360, Math.max(260, rect.width))
+    menu.style.width = `${width}px`
+    menu.style.left = `${Math.max(12, Math.min(rect.left, window.innerWidth - width - 12))}px`
+    menu.style.top = `${Math.max(12, rect.top - 62)}px`
+    menu.style.display = ''
+  }
+  const sync = (): void => {
+    const input = composerTextarea()
+    if (input === null || document.activeElement !== input) { hide(); return }
+    showFor(input)
+  }
+  const commit = (): void => {
+    const input = activeInput ?? composerTextarea()
+    if (input === null) return
+    input.focus()
+    input.value = '/workbench '
+    input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: '/workbench ' }))
+    input.setSelectionRange(input.value.length, input.value.length)
+    hide()
+  }
+  button?.addEventListener('mousedown', (event) => { event.preventDefault(); commit() })
+  const onInput = (): void => { sync() }
+  const onKeydown = (event: KeyboardEvent): void => {
+    if (menu.style.display === 'none') return
+    if (event.key === 'Escape') { hide(); return }
+    if (event.key === 'Enter' || event.key === 'Tab') {
+      event.preventDefault()
+      commit()
+    }
+  }
+  const onFocusin = (): void => { sync() }
+  const onPointerdown = (event: PointerEvent): void => {
+    if (menu.style.display === 'none') return
+    if (event.target instanceof Node && menu.contains(event.target)) return
+    if (event.target === activeInput) return
+    hide()
+  }
+  const onResize = (): void => { sync() }
+  document.addEventListener('input', onInput, true)
+  document.addEventListener('keyup', onInput, true)
+  document.addEventListener('keydown', onKeydown, true)
+  document.addEventListener('focusin', onFocusin, true)
+  document.addEventListener('pointerdown', onPointerdown, true)
+  window.addEventListener('resize', onResize)
+  window.addEventListener('scroll', onResize, true)
+  return () => {
+    document.removeEventListener('input', onInput, true)
+    document.removeEventListener('keyup', onInput, true)
+    document.removeEventListener('keydown', onKeydown, true)
+    document.removeEventListener('focusin', onFocusin, true)
+    document.removeEventListener('pointerdown', onPointerdown, true)
+    window.removeEventListener('resize', onResize)
+    window.removeEventListener('scroll', onResize, true)
+    menu.remove()
+  }
+}
 
 export const name = 'dsh-workbench-client'
 export const inject = ['sessions', 'workspaces', 'connection', 'uiWorkspace', 'modelDirectories', 'remote', 'remote.session']
@@ -3374,6 +3461,7 @@ export function apply(ctx: unknown): () => void {
   const watcher = new MutationObserver(() => { placeEntry(); placeView() })
   watcher.observe(document.body, { childList: true, subtree: true })
   placeEntry(); placeView()
+  const disposeSlashMenu = installWorkbenchSlashMenu()
 
   const onOtherActivate = (event: Event): void => { if ((event as CustomEvent).detail !== PANEL_NAME && open) setOpen(false) }
   const onClickSidebarRow = (event: MouseEvent): void => {
@@ -3387,6 +3475,7 @@ export function apply(ctx: unknown): () => void {
 
   return () => {
     watcher.disconnect(); entryObserver.disconnect()
+    disposeSlashMenu()
     document.removeEventListener(ACTIVATE_EVENT, onOtherActivate)
     document.removeEventListener('click', onClickSidebarRow, true)
     entry.remove(); root.unmount(); view.remove()
