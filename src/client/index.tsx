@@ -425,6 +425,7 @@ const QUICK_MODEL_STORAGE_KEY = 'dsh-workbench.quickModelSelection'
 const QUICK_IMAGE_MEDIA_TYPES = new Set<string>(['image/png', 'image/jpeg', 'image/webp', 'image/gif'])
 const QUICK_DOCUMENT_MEDIA_TYPES = new Set<string>(['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
 const QUICK_DOCUMENT_EXTENSIONS = /\.(pdf|docx)$/i
+const WORKBENCH_COMMAND_RE = /^\/workbench(?:\s+|$)/i
 const EMPTY_MODEL_DIRECTORY_STATE: ModelDirectoryState = { current: null, groups: [], failures: [], status: 'idle', error: null }
 const createClientId = (): string => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
@@ -458,6 +459,46 @@ const isQuickImageFile = (file: File): boolean => QUICK_IMAGE_MEDIA_TYPES.has(fi
 const isQuickDocumentFile = (file: File): boolean => QUICK_DOCUMENT_MEDIA_TYPES.has(file.type) || QUICK_DOCUMENT_EXTENSIONS.test(file.name)
 const isQuickAttachmentFile = (file: File): boolean => isQuickImageFile(file) || isQuickDocumentFile(file)
 const isQuickImageDraft = (draft: QuickAttachmentDraft): draft is QuickImageDraft => 'previewUrl' in draft
+const parseWorkbenchCommand = (text: string): { commandUsed: boolean; taskText: string } => {
+  const trimmed = text.trim()
+  if (!WORKBENCH_COMMAND_RE.test(trimmed)) return { commandUsed: false, taskText: text }
+  return { commandUsed: true, taskText: trimmed.replace(WORKBENCH_COMMAND_RE, '').trim() }
+}
+const quickAttachmentSummary = (attachments: readonly QuickAttachmentDraft[]): string => {
+  const images = attachments.filter(isQuickImageDraft).length
+  const documents = attachments.length - images
+  if (images === 0 && documents === 0) return ''
+  const parts: string[] = []
+  if (images > 0) parts.push(`${images} 张图片`)
+  if (documents > 0) parts.push(`${documents} 个 PDF/DOCX 文档`)
+  return `用户还附加了 ${parts.join('、')}作为任务内容，请结合附件理解需求；如果附件里包含关键任务信息、错误截图、界面状态、待办内容、通知或需求说明，请在最终任务 description 中用文字概括，便于入库后检索。`
+}
+const quickTaskPlaceholder = (text: string, attachments: readonly QuickAttachmentDraft[]): string => {
+  const trimmed = text.trim()
+  if (trimmed !== '') return trimmed
+  const images = attachments.filter(isQuickImageDraft).length
+  const documents = attachments.length - images
+  if (images > 0 && documents > 0) return '（见附件图片和文档）'
+  if (images > 0) return '（见附件图片）'
+  if (documents > 0) return '（见附件文档）'
+  return '（未提供内容）'
+}
+const buildQuickIntakePrompt = (input: {
+  taskText: string
+  attachments: readonly QuickAttachmentDraft[]
+  nowIso: string
+  workspaceRootLabel: string
+  reservedTaskId: string
+  taskFolderPath: string
+  taskFolderRelative: string
+  commandUsed: boolean
+}): string => {
+  const attachmentInstruction = quickAttachmentSummary(input.attachments)
+  const commandInstruction = input.commandUsed
+    ? '\n\n用户通过 /workbench 命令触发快速录入；/workbench 只用于创建新任务草稿，不代表执行、拆解、日报、计划、知识库、点子、复盘或微信提醒。'
+    : ''
+  return `你是“个人工作台”的任务澄清助手。请按 workbench-intake 规范执行。\n\n用户想创建的任务是：\n「${quickTaskPlaceholder(input.taskText, input.attachments)}」${attachmentInstruction === '' ? '' : `\n\n${attachmentInstruction}`}${commandInstruction}\n\n当前时间：${input.nowIso}\nAI 工作区根目录：${input.workspaceRootLabel}\n本次预分配任务 id：${input.reservedTaskId}${input.taskFolderPath !== '' ? `\n任务资料夹：${input.taskFolderPath}${input.taskFolderRelative !== '' ? `\n任务资料夹相对路径：./${input.taskFolderRelative}/` : ''}` : ''}\n\n请先澄清必要信息（一次一个主题，最多5轮）。除非用户明确要求为这条任务指定资料夹，否则不要再询问工作区路径。信息足够后只能调用 workbench_submit_task 提交结构化任务草稿，并且必须传入 task_id="${input.reservedTaskId}"${input.taskFolderPath !== '' ? `、workspace_path="${input.taskFolderPath}"` : ''}。如需在澄清阶段创建文件，请放在${input.taskFolderRelative !== '' ? `工作区内的 ./${input.taskFolderRelative}/` : '任务资料夹'}。不要执行任务本身。`
+}
 const fileToBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
   const reader = new FileReader()
   reader.onload = () => {
@@ -1657,6 +1698,8 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
   }
   const startAISession = async (mode: 'clarify' | 'consult' | 'breakdown' | 'execute' | 'review' | 'plan' | 'report' | 'idea_association' | 'idea_brainstorm' | 'knowledge_doc', task: Task | null, text: string, previousSessions: Array<Record<string, unknown>> = [], docContext?: { fileLink: string; content: string; name?: string; truncated?: boolean }, attachments: readonly QuickAttachmentDraft[] = []): Promise<void> => {
     if (mode === 'clarify' && text.trim() === '' && attachments.length === 0) return
+    const quickInput = mode === 'clarify' ? parseWorkbenchCommand(text) : { commandUsed: false, taskText: text }
+    if (mode === 'clarify' && quickInput.taskText.trim() === '' && attachments.length === 0) return
     const customPrompt = mode === 'clarify' ? '' : await askUserPrompt(AI_PROMPT_LABELS[mode] ?? 'AI 会话')
     if (customPrompt === null) return
     const planAnchor = mode === 'plan' ? (/^\d{4}-\d{2}-\d{2}$/.test(text) ? text : localDateString()) : ''
@@ -1753,7 +1796,7 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
       const taskFolderPrompt = taskFolderPath === ''
         ? ''
         : `\n\n工作区根目录：${workspaceRootLabel}\n任务资料夹：${taskFolderPath}${taskFolderRelative !== '' ? `\n任务资料夹相对路径：./${taskFolderRelative}/` : ''}\n如需创建或修改本任务相关文件，请放在${taskFolderRelative !== '' ? `工作区内的 ./${taskFolderRelative}/` : '上述任务资料夹'}，不要在工作区根目录散放文件。`
-      await binding.session.rename(mode === 'idea_association' ? '点子关联' : mode === 'idea_brainstorm' ? '点子头脑风暴' : mode === 'knowledge_doc' ? `知识总结：${docContext?.name ?? '本地文档'}` : mode === 'report' ? `${text.startsWith('week:') ? '周报' : '日报'}：${text.split(':')[1] ?? ''}` : mode === 'plan' ? `AI 计划：${planAnchor.slice(5)}` : mode === 'clarify' ? `澄清：${text.trim() === '' ? '图片任务' : text.slice(0, 24)}` : mode === 'consult' ? `协助：${task?.title.slice(0, 24)}` : mode === 'breakdown' ? `拆解：${task?.title.slice(0, 24)}` : mode === 'review' ? `复盘：${task?.title.slice(0, 24)}` : `执行：${task?.title.slice(0, 24)}`).catch(() => undefined)
+      await binding.session.rename(mode === 'idea_association' ? '点子关联' : mode === 'idea_brainstorm' ? '点子头脑风暴' : mode === 'knowledge_doc' ? `知识总结：${docContext?.name ?? '本地文档'}` : mode === 'report' ? `${text.startsWith('week:') ? '周报' : '日报'}：${text.split(':')[1] ?? ''}` : mode === 'plan' ? `AI 计划：${planAnchor.slice(5)}` : mode === 'clarify' ? `澄清：${quickInput.taskText.trim() === '' ? '附件任务' : quickInput.taskText.slice(0, 24)}` : mode === 'consult' ? `协助：${task?.title.slice(0, 24)}` : mode === 'breakdown' ? `拆解：${task?.title.slice(0, 24)}` : mode === 'review' ? `复盘：${task?.title.slice(0, 24)}` : `执行：${task?.title.slice(0, 24)}`).catch(() => undefined)
       let reportContextText = ''
       if (mode === 'report') {
         const [periodCode, periodStart] = text.split(':')
@@ -1814,7 +1857,7 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
         : mode === 'plan'
         ? planPrompt
         : mode === 'clarify'
-        ? `你是“个人工作台”的任务澄清助手。请按 workbench-intake 规范执行。\n\n用户想创建的任务是：\n「${text.trim() === '' ? '（见附件）' : text}」${attachments.length > 0 ? `\n\n用户还附加了 ${attachments.length} 个附件作为任务内容，请结合附件理解需求；如果附件里包含关键任务信息、错误截图、界面状态或待办内容，请在最终任务 description 中用文字概括，便于入库后检索。` : ''}\n\n当前时间：${new Date().toISOString()}\nAI 工作区根目录：${workspaceRootLabel}\n本次预分配任务 id：${reservedTaskId}${taskFolderPath !== '' ? `\n任务资料夹：${taskFolderPath}${taskFolderRelative !== '' ? `\n任务资料夹相对路径：./${taskFolderRelative}/` : ''}` : ''}\n\n请先澄清必要信息（一次一个主题，最多5轮）。除非用户明确要求为这条任务指定资料夹，否则不要再询问工作区路径。信息足够后调用 workbench_submit_task 提交结构化任务草稿，并且必须传入 task_id="${reservedTaskId}"${taskFolderPath !== '' ? `、workspace_path="${taskFolderPath}"` : ''}。如需在澄清阶段创建文件，请放在${taskFolderRelative !== '' ? `工作区内的 ./${taskFolderRelative}/` : '任务资料夹'}。不要执行任务本身。`
+        ? buildQuickIntakePrompt({ taskText: quickInput.taskText, attachments, nowIso: new Date().toISOString(), workspaceRootLabel, reservedTaskId, taskFolderPath, taskFolderRelative, commandUsed: quickInput.commandUsed })
         : mode === 'consult'
           ? `你是“个人工作台”的任务协助助手。请针对下面这个任务提供咨询、拆解或复盘建议（咨询模式不执行）。\n\n任务 id：${task?.id}\n任务标题：${task?.title}\n任务描述：${task?.description || '（无）'}\n类型：${task?.typeCode} 优先级：${task?.priorityCode} 状态：${task?.statusCode}\n截止：${task?.effectiveDueAt ?? task?.dueAt ?? '无'}${taskFolderPrompt}\n${memoryContext !== '' ? `\n任务共享记忆（同一任务/子树）：\n${memoryContext}` : ''}\n\n请先理解任务，再给出建议；如果信息不足，可以一次问一个问题。\n\n重要：如果用户要求把结论/补充信息保存回任务，请调用 workbench_update_task(task_id="${task?.id ?? ''}", description="...") 更新原任务；绝对不要调用 workbench_submit_task 新建任务。`
           : mode === 'breakdown'
@@ -2439,7 +2482,7 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
                     const files = Array.from(e.clipboardData.files).filter(isQuickAttachmentFile)
                     if (files.length > 0) addQuickAttachments(files)
                   }}
-                  placeholder="一句话描述任务，例如：周五10:30接待重要客户；也可以粘贴或拖入图片、PDF 或 DOCX"
+                  placeholder="/workbench 后接任务文字；也可以粘贴或拖入图片、PDF 或 DOCX"
                 />
                 {quickAttachments.length > 0 && (
                   <div className="wb-quick-image-rail" aria-label="快速录入附件">
@@ -2455,7 +2498,7 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
                 )}
                 <div className="wb-quick-actions">
                   <QuickModelPicker runtime={runtime} value={quickModelSelection} onChange={setQuickModelSelection} disabled={busy} onError={setError} alignRight />
-                  <button className="wb-send-button" disabled={busy || (quickText.trim() === '' && quickAttachments.length === 0)} onClick={() => void startAISession('clarify', null, quickText, [], undefined, quickAttachments)} title="创建澄清会话" aria-label="创建澄清会话"><Icon name="send" size={18} /></button>
+                  <button className="wb-send-button" disabled={busy || (parseWorkbenchCommand(quickText).taskText.trim() === '' && quickAttachments.length === 0)} onClick={() => void startAISession('clarify', null, quickText, [], undefined, quickAttachments)} title="创建澄清会话" aria-label="创建澄清会话"><Icon name="send" size={18} /></button>
                 </div>
               </div>
             </div>
