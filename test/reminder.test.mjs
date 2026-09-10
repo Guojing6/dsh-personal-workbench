@@ -265,6 +265,37 @@ test('scheduler: scan sends immediate reminders once and writes fired_at', async
   })
 })
 
+test('scheduler: resolves target during scan instead of relying on cached channel status', async () => {
+  await withDb(async (db) => {
+    writeReminderPolicy(db, { enabled: true, quietHours: null, immediatePriorities: ['p1'] })
+    const im = fakeIm()
+    const adapter = makeAdapter(db, im)
+    const task = createTask(db, { title: '自动发现目标', typeCode: 'code_impl', priorityCode: 'p1', dueAt: new Date(Date.now() - 60_000).toISOString() })
+    addReminder(db, task.id, 0)
+    assert.equal(adapter.status().configured, false)
+    const scheduler = new ReminderScheduler({ db, adapter, isTargetConfigured: () => false })
+    const result = await scheduler.scan()
+    assert.equal(result.sent, 1)
+    assert.equal(im.sent.length, 1)
+    assert.equal(adapter.status().configured, true)
+  })
+})
+
+test('scheduler: browser channel leaves due reminders for the frontend', async () => {
+  await withDb(async (db) => {
+    writeReminderPolicy(db, { enabled: true, channel: 'browser', quietHours: null })
+    const im = fakeIm()
+    const adapter = makeAdapter(db, im)
+    const task = createTask(db, { title: '页面提醒', typeCode: 'code_impl', priorityCode: 'p1', dueAt: new Date(Date.now() - 60_000).toISOString() })
+    addReminder(db, task.id, 0)
+    const scheduler = new ReminderScheduler({ db, adapter, isTargetConfigured: () => true })
+    const result = await scheduler.scan()
+    assert.equal(result.scanned, 0)
+    assert.equal(im.sent.length, 0)
+    assert.equal(listDueRemindersInWindow(db, 24).length, 1)
+  })
+})
+
 test('scheduler: channel unavailable does NOT write fired_at (frontend keeps working)', async () => {
   await withDb(async (db) => {
     writeReminderPolicy(db, { enabled: true, quietHours: null })

@@ -26,7 +26,7 @@ import type { SendOutcome, WechatChannelAdapter } from './adapter.js'
 export interface SchedulerDeps {
   db: DatabaseSync
   adapter: WechatChannelAdapter
-  /** 读取用户在设置里选的投递目标是否已配置（用于"已装未配"降级口径） */
+  /** 兼容旧调用方：读取用户在设置里选的投递目标是否已配置。调度器会优先实时解析目标。 */
   isTargetConfigured: () => boolean
   /** 观察 dsh-im 入站消息计数（恢复信号）；不可用则返回 null */
   readInboundCount?: () => Promise<number | null>
@@ -88,6 +88,7 @@ export class ReminderScheduler {
     try {
       const policy = this.policy()
       if (!policy.enabled) return result
+      if (policy.channel === 'browser') return result
       const now = this.now()
       const nowMs = now.getTime()
       // 不在这里按窗口过滤：窗口判定交给 decideReminder，这样"过期跳过"能记事件。
@@ -96,7 +97,9 @@ export class ReminderScheduler {
       if (due.length === 0) return result
 
       const state = this.throttleState(policy, now)
-      const channelReady = this.deps.adapter.available() && this.deps.isTargetConfigured()
+      const channelAvailable = this.deps.adapter.available()
+      const target = channelAvailable ? await this.deps.adapter.resolveTarget() : null
+      const channelReady = channelAvailable && target !== null
 
       // 未安装 / 未配置：不写 fired_at，让前端继续负责；只记一次事件（防刷）
       if (!channelReady) {
@@ -104,7 +107,7 @@ export class ReminderScheduler {
           result.unavailable += 1
           this.appendEventOnce(reminder.taskId, 'reminder_channel_unavailable', {
             reminderId: reminder.reminderId,
-            reason: this.deps.adapter.available() ? 'not-configured' : 'not-installed',
+            reason: channelAvailable ? 'not-configured' : 'not-installed',
           }, now)
         }
         return result

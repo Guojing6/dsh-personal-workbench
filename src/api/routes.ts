@@ -445,6 +445,7 @@ export function makeRoutes(db: DatabaseSync, deps: ReminderRouteDeps = {}): WebR
         const method = req.method ?? 'GET'
         if (method === 'GET') {
           const options = await deps.channel.listOptions()
+          await deps.channel.resolveTarget()
           return writeJson(res, 200, { ok: true, status: deps.channel.status(), options, queue: listQueue(db, 20) })
         }
         if (method === 'POST') {
