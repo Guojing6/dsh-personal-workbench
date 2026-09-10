@@ -7,6 +7,7 @@ import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-commands'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-tools'
+import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { makeDictionaryRoute } from './api/dictionaryRoute.js'
 import { makeLocalDirRoute } from './api/localDirRoute.js'
 import { makeOpenFileRoute } from './api/openFileRoute.js'
@@ -37,6 +38,14 @@ const WORKBENCH_GUIDANCE = [
   '/workbench 是个人工作台“快速录入新任务”的专用命令：当用户消息以 /workbench 开头时，只把后续文字和用户提供的图片/PDF/DOCX理解为新任务线索，按 workbench-intake 规范澄清，并且只能调用 workbench_submit_task 写入 pending 任务草稿；不要执行、拆解、生成计划/报告/知识/点子/复盘，也不要处理微信提醒。',
   '用户提到「工作台 / 任务 / 日历 / 提醒 / 子任务 / 计划 / 日报周报」时即指本插件，请据此协作。',
 ].join('')
+
+const WORKBENCH_INTAKE_COMMAND_PROMPT = [
+  '你是“个人工作台”的任务澄清助手。请按 workbench-intake 规范执行。',
+  '用户通过 /workbench 请求创建一个新的个人工作台任务。',
+  '只处理新任务的澄清与提交：先一次询问一个主题、最多澄清 5 轮；信息足够后只能调用 workbench_submit_task 写入 pending 任务草稿。',
+  '不要执行任务本身，不要拆解任务，不要生成计划、报告、知识、点子、复盘，也不要处理微信提醒。',
+  '以下是用户通过 /workbench 提供的任务线索：',
+].join('\n')
 
 const SECTION_ORDER = 150
 
@@ -114,12 +123,17 @@ export function apply(ctx: Context, config: Config = {}): void {
       name: 'workbench',
       description: '快速录入个人工作台新任务',
       input: { hint: '<任务文字>' },
-      handler: ({ rawInput }) => ({
-        kind: 'success',
-        text: rawInput.trim()
-          ? '已识别为工作台快速录入，请在工作台快速录入窗口中继续提交任务内容。'
-          : '请在工作台快速录入窗口中输入任务文字，或添加图片、PDF、DOCX。',
-      }),
+      handler: ({ agent, rawInput }) => {
+        const taskText = rawInput.trim()
+        if (!taskText) {
+          return { kind: 'error', text: '请在 /workbench 后输入任务文字。' }
+        }
+        agent.steer(createUserMessage({
+          content: [{ type: 'text', text: `${WORKBENCH_INTAKE_COMMAND_PROMPT}\n${taskText}` }],
+          source: { kind: 'user' },
+        }))
+        return { kind: 'success', text: '已将任务线索送入当前工作区，开始按 workbench-intake 规范澄清。' }
+      },
     }),
     'dsh-workbench: command',
   )
