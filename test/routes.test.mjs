@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import http from 'node:http'
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { openWorkbenchDb } from '../lib/db/database.js'
@@ -12,6 +12,8 @@ import { makeLocalDirRoute } from '../lib/api/localDirRoute.js'
 import { makeOpenFileRoute } from '../lib/api/openFileRoute.js'
 import { makeRoutes } from '../lib/api/routes.js'
 import { createKnowledge, createTask, localDateString, updateTask } from '../lib/db/repo.js'
+
+const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
 
 function makeStoredZip(entries) {
   const localParts = []
@@ -81,7 +83,7 @@ async function withServer(fn) {
       body: body === undefined ? undefined : JSON.stringify(body),
     })
     const text = await res.text()
-    return { status: res.status, body: text === '' ? null : JSON.parse(text) }
+    return { status: res.status, headers: res.headers, body: text === '' ? null : JSON.parse(text) }
   }
   try {
     await fn({ db, request })
@@ -99,7 +101,10 @@ test('manual plan editing PUT saves added task instead of returning not found', 
 
     const health = await request('GET', '/api/workbench/health')
     assert.equal(health.status, 200)
-    assert.equal(health.body.version, '1.10.1')
+    assert.equal(health.headers.get('cache-control'), 'no-store')
+    assert.equal(health.headers.get('x-content-type-options'), 'nosniff')
+    assert.equal(health.body.name, packageJson.name)
+    assert.equal(health.body.version, packageJson.version)
 
     // Simulates: open edit mode, add an existing task, then save.
     const put = await request('PUT', `/api/workbench/plans/${planDate}`, {
@@ -302,6 +307,14 @@ test('quick attachment extraction accepts pdf/docx and rejects other documents',
     })
     assert.equal(rejected.status, 400)
     assert.match(rejected.body.error, /PDF 和 DOCX/)
+
+    const invalid = await request('POST', '/api/workbench/quick-attachments/extract-text', {
+      name: 'bad.pdf',
+      mediaType: 'application/pdf',
+      data: 'not valid base64!!!',
+    })
+    assert.equal(invalid.status, 400)
+    assert.match(invalid.body.error, /invalid base64/)
   })
 })
 

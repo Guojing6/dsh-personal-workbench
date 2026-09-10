@@ -1,9 +1,8 @@
 /**
  * /api/workbench/* 路由。Loopback-only 保护（同 dsh-ssh 的信任围栏）。
  */
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
-import type { IncomingMessage, ServerResponse } from 'node:http'
 import { basename, join } from 'node:path'
 import { inflateRawSync, inflateSync } from 'node:zlib'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
@@ -17,6 +16,7 @@ import {
   listTaskSessions, listTasks, localDateString, registerAiSession, repairParentCompletion, restoreTask, updateDailyPlan, updateIdea, updateKnowledge, updateTask, updateTaskWithCompletion, type ReportPeriodCode, type TaskInput,
 } from '../db/repo.js'
 import { defaultTasksWorkspace } from '../workbenchPaths.js'
+import { isLoopbackRequest, readJsonBody, writeJson } from './http.js'
 
 const TASKS_PREFIX = '/api/workbench/tasks'
 const DRAFTS_PREFIX = '/api/workbench/drafts'
@@ -38,39 +38,20 @@ function storedDefaultWorkspace(metaGet: (key: string) => string | undefined): s
   return stored
 }
 
-function isLoopbackRequest(req: IncomingMessage): boolean {
-  const address = req.socket.remoteAddress
-  if (address !== '127.0.0.1' && address !== '::1' && address !== '::ffff:127.0.0.1') return false
-  const host = req.headers.host
-  if (typeof host !== 'string') return false
-  let url: URL
-  try { url = new URL(`http://${host}`) } catch { return false }
-  if (url.hostname !== '127.0.0.1' && url.hostname !== 'localhost' && url.hostname !== '[::1]') return false
-  if (req.headers['sec-fetch-site'] === 'cross-site') return false
-  const origin = req.headers.origin
-  if (origin === undefined) return true
-  try { return new URL(origin).host === url.host } catch { return false }
-}
+let cachedPackageInfo: { name: string; version: string } | null = null
 
-function writeJson(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'referrer-policy': 'no-referrer' })
-  res.end(JSON.stringify(body))
-}
-
-async function readJsonBody(req: IncomingMessage, maxBytes = 256 * 1024): Promise<Record<string, unknown> | undefined> {
-  const chunks: Buffer[] = []
-  let size = 0
-  for await (const chunk of req) {
-    const buffer = chunk as Buffer
-    size += buffer.length
-    if (size > maxBytes) return undefined
-    chunks.push(buffer)
-  }
-  if (chunks.length === 0) return {}
+function packageInfo(): { name: string; version: string } {
+  if (cachedPackageInfo !== null) return cachedPackageInfo
   try {
-    const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-    return typeof parsed === 'object' && parsed !== null ? parsed as Record<string, unknown> : undefined
-  } catch { return undefined }
+    const parsed = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { name?: unknown; version?: unknown }
+    cachedPackageInfo = {
+      name: typeof parsed.name === 'string' && parsed.name !== '' ? parsed.name : '@guojing6/dsh-workbench',
+      version: typeof parsed.version === 'string' && parsed.version !== '' ? parsed.version : 'unknown',
+    }
+  } catch {
+    cachedPackageInfo = { name: '@guojing6/dsh-workbench', version: 'unknown' }
+  }
+  return cachedPackageInfo
 }
 
 const MAX_LOCAL_DOC_BYTES = 1024 * 1024
@@ -214,6 +195,17 @@ function truncateQuickAttachmentText(text: string): { content: string; truncated
   }
 }
 
+function decodeBase64Body(data: string): Buffer {
+  const normalized = data.replace(/\s+/g, '')
+  if (normalized === '' || normalized.length % 4 === 1 || !/^[A-Za-z0-9+/]*={0,2}$/.test(normalized)) {
+    throw new Error('invalid base64 data')
+  }
+  const buffer = Buffer.from(normalized, 'base64')
+  const canonical = buffer.toString('base64').replace(/=+$/g, '')
+  if (canonical !== normalized.replace(/=+$/g, '')) throw new Error('invalid base64 data')
+  return buffer
+}
+
 function requireCode(db: DatabaseSync, kind: string, code: string, field: string): void {
   if (typeof code !== 'string' || code.trim() === '') throw new Error(`${field} is required`)
   const entry = getDictionary(db, kind, code)
@@ -350,7 +342,7 @@ export function makeRoutes(db: DatabaseSync, deps: ReminderRouteDeps = {}): WebR
         const data = typeof body.data === 'string' ? body.data : ''
         if (name.trim() === '' || data === '') return writeJson(res, 400, { error: 'name and data are required' })
         try {
-          const buffer = Buffer.from(data, 'base64')
+          const buffer = decodeBase64Body(data)
           if (buffer.length > MAX_QUICK_ATTACHMENT_BYTES) return writeJson(res, 413, { error: '文档不能超过 5MB' })
           const { content, truncated } = truncateQuickAttachmentText(extractQuickAttachmentText(buffer, name, mediaType))
           return writeJson(res, 200, { ok: true, name, mediaType, content, truncated, size: buffer.length })
@@ -1113,10 +1105,11 @@ export function makeRoutes(db: DatabaseSync, deps: ReminderRouteDeps = {}): WebR
       handler(_req, res) {
         if (!isLoopbackRequest(_req)) return writeJson(res, 403, { error: 'forbidden: loopback-only' })
         const versionRow = db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get() as { value: string } | undefined
+        const pkg = packageInfo()
         writeJson(res, 200, {
           ok: true,
-          name: '@guojing6/dsh-workbench',
-          version: '1.10.1',
+          name: pkg.name,
+          version: pkg.version,
           db: {
             schemaVersion: versionRow?.value ?? 'unknown',
             taskCount: listTasks(db, { includeArchived: true }).length,
