@@ -1759,13 +1759,6 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
       if (hasCustomTaskFolder && task !== null) {
         taskFolderPath = task.workspacePath ?? ''
         desiredWorkspace = taskFolderPath
-      } else if (task !== null) {
-        desiredWorkspace = task.effectiveWorkspacePath ?? ''
-        if (desiredWorkspace === '' && normalizedRoot !== '' && activeSettings.autoCreateTypeFolders) {
-          taskFolderRelative = taskWorkspaceFolderName(task.id)
-          desiredWorkspace = joinPath(normalizedRoot, taskFolderRelative, pathSep)
-          taskFolderPath = desiredWorkspace
-        }
       } else if (activeSettings.autoCreateTypeFolders && normalizedRoot !== '' && reservedTaskId !== '') {
         taskFolderRelative = taskWorkspaceFolderName(reservedTaskId)
         taskFolderPath = joinPath(normalizedRoot, taskFolderRelative, pathSep)
@@ -1790,7 +1783,7 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
       const binding = runtime.sessions.binding(id)
       if (binding === undefined) throw new Error('会话绑定未就绪，请稍后重试')
       if (mode === 'clarify') await applyQuickModelSelection(id)
-      const workspaceRootLabel = normalizedDesired !== '' ? normalizedDesired : (ws.items.find((item) => item.workspaceId === workspaceId)?.path ?? '当前连接工作区')
+      const workspaceRootLabel = ws.items.find((item) => item.workspaceId === workspaceId)?.path ?? '当前连接工作区'
       const taskFolderPrompt = taskFolderPath === ''
         ? ''
         : `\n\n工作区根目录：${workspaceRootLabel}\n任务资料夹：${taskFolderPath}${taskFolderRelative !== '' ? `\n任务资料夹相对路径：./${taskFolderRelative}/` : ''}\n如需创建或修改本任务相关文件，请放在${taskFolderRelative !== '' ? `工作区内的 ./${taskFolderRelative}/` : '上述任务资料夹'}，不要在工作区根目录散放文件。`
