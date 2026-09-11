@@ -1755,28 +1755,17 @@ function WorkbenchApp({ runtime, closePanel }: { runtime: WorkbenchRuntime; clos
       const rootDesired = activeSettings.defaultWorkspace.trim()
       const normalizedRoot = rootDesired === '' ? '' : isWsl ? normalizeWindowsPathToWsl(rootDesired) : rootDesired
       const hasCustomTaskFolder = task?.workspacePath !== null && task?.workspacePath !== undefined && task.workspacePath.trim() !== '' && !isAutoTaskWorkspacePath(task.workspacePath, task.id)
-      let desiredWorkspace = ''
       if (hasCustomTaskFolder && task !== null) {
         taskFolderPath = task.workspacePath ?? ''
-        desiredWorkspace = taskFolderPath
-      } else if (activeSettings.autoCreateTypeFolders && normalizedRoot !== '' && reservedTaskId !== '') {
+      } else if (normalizedRoot !== '' && reservedTaskId !== '') {
         taskFolderRelative = taskWorkspaceFolderName(reservedTaskId)
         taskFolderPath = joinPath(normalizedRoot, taskFolderRelative, pathSep)
-        desiredWorkspace = taskFolderPath
         try {
           await api('/api/workbench/workspaces/ensure', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: taskFolderPath }) })
-        } catch { /* 任务资料夹创建失败不阻断会话 */ }
-      }
-      const normalizedDesired = desiredWorkspace === '' ? '' : isWsl ? normalizeWindowsPathToWsl(desiredWorkspace) : desiredWorkspace
-      if (normalizedDesired !== '') {
-        try {
-          await api('/api/workbench/workspaces/ensure', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: normalizedDesired }) })
-          const created = await runtime.workspaces.create?.({ path: normalizedDesired })
-          if (typeof created?.workspaceId === 'string' && created.workspaceId !== '') workspaceId = created.workspaceId
-          if (task !== null && task.workspacePath === null && task.effectiveWorkspacePath === null && normalizedDesired !== '') {
-            void api(`/api/workbench/tasks/${task.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ workspacePath: normalizedDesired }) }).catch(() => undefined)
+          if (task !== null && (task.workspacePath === null || isAutoTaskWorkspacePath(task.workspacePath, task.id))) {
+            void api(`/api/workbench/tasks/${task.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ workspacePath: taskFolderPath }) }).catch(() => undefined)
           }
-        } catch { /* 目录创建/注册失败则回退当前工作区 */ }
+        } catch { /* 任务资料夹创建失败不阻断会话 */ }
       }
       if (workspaceId === undefined) throw new Error('没有可用工作区，请先在 DSH 中打开一个工作区')
       const id = await runtime.uiWorkspace.connectWorkspace(workspaceId)
